@@ -9,6 +9,8 @@ import { User } from './auth/entities/user.entity';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { ResetToken } from './auth/entities/reset-token.entity';
 import { MongooseModule } from '@nestjs/mongoose';
+import { CategoriesModule } from './category/category.module';
+import { MenueModule } from './menue/menue.module';
 import config from './config/config';
 
 
@@ -62,7 +64,7 @@ import config from './config/config';
         uri: configService.get<string>('mongodb.uri'),
       }),
       inject: [ConfigService],
-    }),
+    }), CategoriesModule, MenueModule,
  ],
 
   controllers: [AppController],
