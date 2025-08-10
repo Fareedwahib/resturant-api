@@ -12,7 +12,6 @@ import { User, UserRole, UserStatus } from '../auth/entities/user.entity';
 import { Menue } from '../menue/entities/menue.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
-import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { MailService } from '../services/mail.service';
 
@@ -257,21 +256,6 @@ export class OrderService {
     return await this.findOne(updatedOrder.id);
   }
 
-  async updatePaymentStatus(
-    orderId: string,
-    updatePaymentDto: UpdatePaymentStatusDto,
-    userId: string,
-  ): Promise<Order> {
-    const order = await this.findOne(orderId);
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-
-    if (!user || ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
-      throw new ForbiddenException('Only admin or staff can update payment status');
-    }
-
-    order.paymentStatus = updatePaymentDto.paymentStatus;
-    return await this.orderRepository.save(order);
-  }
 
   async cancelOrder(orderId: string, userId: string, reason?: string): Promise<Order> {
     const order = await this.findOne(orderId);
