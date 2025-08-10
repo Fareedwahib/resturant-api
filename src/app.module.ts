@@ -5,14 +5,19 @@ import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+// import { User } fromimport { Module } from '@nestjs/common';
 import { User } from './auth/entities/user.entity';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { ResetToken } from './auth/entities/reset-token.entity';
+import { DeliveryStaff } from './auth/entities/delivery-staff.entity';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CategoriesModule } from './category/category.module';
 import { MenueModule } from './menue/menue.module';
+import { OrderModule } from './order/order.module';
+import { PaymentModule } from './payment/payment.module';
+import { Order, OrderItem } from './order/entities/order.entity';
+import { Payment, PaymentWebhook } from './payment/entities/payment.entity';
 import config from './config/config';
-
 
 @Module({
   imports: [
@@ -42,6 +47,11 @@ import config from './config/config';
           User,
           RefreshToken,
           ResetToken,
+          DeliveryStaff,
+          Order,
+          OrderItem,
+          Payment,
+          PaymentWebhook,
         ],
         synchronize: true, // Set to false in production!
         autoLoadEntities: true,
@@ -55,7 +65,11 @@ import config from './config/config';
       User,
       RefreshToken,
       ResetToken,
-
+      DeliveryStaff,
+      Order,
+      OrderItem,
+      Payment,
+      PaymentWebhook,
     ]), 
     // MongoDB connection configuration
     MongooseModule.forRootAsync({
@@ -64,7 +78,11 @@ import config from './config/config';
         uri: configService.get<string>('mongodb.uri'),
       }),
       inject: [ConfigService],
-    }), CategoriesModule, MenueModule,
+    }), 
+    CategoriesModule, 
+    MenueModule,
+    OrderModule,
+    PaymentModule,
  ],
 
   controllers: [AppController],

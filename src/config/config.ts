@@ -19,4 +19,19 @@ export default () => ({
   mongodb: {
     uri: process.env.MONGODB_URI,
   },
+  payment: {
+    mtn: {
+      apiKey: process.env.MTN_API_KEY,
+      subscriptionKey: process.env.MTN_SUBSCRIPTION_KEY,
+      environment: process.env.MTN_ENVIRONMENT || 'sandbox',
+    },
+    airtel: {
+      apiKey: process.env.AIRTEL_API_KEY,
+      clientId: process.env.AIRTEL_CLIENT_ID,
+      clientSecret: process.env.AIRTEL_CLIENT_SECRET,
+    },
+    africell: {
+      apiKey: process.env.AFRICELL_API_KEY,
+    },
+  },
 });
