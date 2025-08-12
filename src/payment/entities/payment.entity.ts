@@ -21,8 +21,8 @@ export enum PaymentStatus {
 }
 
 export enum PaymentMethod {
-  CASH_ON_DELIVERY = 'cash_on_delivery',
-  MOBILE_MONEY = 'mobile_money',
+  CASH_ON_DELIVERY = 'cash',
+  MOBILE_MONEY = 'mobilemoney',
   CARD = 'card',
   BANK_TRANSFER = 'bank_transfer',
 }
@@ -30,7 +30,6 @@ export enum PaymentMethod {
 export enum MobileMoneyProvider {
   MTN = 'mtn',
   AIRTEL = 'airtel',
-  AFRICELL = 'africell',
 }
 
 @Entity('payments')

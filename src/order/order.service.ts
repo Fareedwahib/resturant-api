@@ -6,7 +6,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, FindManyOptions } from 'typeorm';
+import { Repository, Between, FindManyOptions, Not, In } from 'typeorm';
 import { Order, OrderItem, OrderStatus, PaymentStatus } from './entities/order.entity';
 import { User, UserRole, UserStatus } from '../auth/entities/user.entity';
 import { Menue } from '../menue/entities/menue.entity';
@@ -27,85 +27,82 @@ export class OrderService {
     @InjectRepository(Menue)
     private menuRepository: Repository<Menue>,
     private mailService: MailService,
-  ) {}
+  ) { }
 
   async create(createOrderDto: CreateOrderDto, customerId: string): Promise<Order> {
-    const customer = await this.userRepository.findOne({
-      where: { id: customerId },
-    });
-
-    if (!customer) {
-      throw new NotFoundException('Customer not found');
-    }
-
-    // Validate menu items and calculate totals
-    let subtotal = 0;
-    const orderItems: Array<{
-      menuItemId: number;
-      menuItemName: string;
-      unitPrice: number;
-      quantity: number;
-      totalPrice: number;
-      specialRequests?: string;
-    }> = [];
-
-    for (const item of createOrderDto.items) {
-      const menuItem = await this.menuRepository.findOne({
-        where: { id: item.menuItemId },
-      });
-
-      if (!menuItem) {
-        throw new BadRequestException(`Menu item with ID ${item.menuItemId} not found`);
-      }
-
-      if (!menuItem.isActive) {
-        throw new BadRequestException(`Menu item "${menuItem.name}" is not available`);
-      }
-
-      if (menuItem.stock < item.quantity) {
-        throw new BadRequestException(
-          `Insufficient stock for "${menuItem.name}". Available: ${menuItem.stock}, Requested: ${item.quantity}`
-        );
-      }
-
-      const itemTotal = menuItem.price * item.quantity;
-      subtotal += itemTotal;
-
-      orderItems.push({
-        menuItemId: menuItem.id,
-        menuItemName: menuItem.name,
-        unitPrice: menuItem.price,
-        quantity: item.quantity,
-        totalPrice: itemTotal,
-        specialRequests: item.specialRequests,
-      });
-    }
-
-    // Calculate fees and taxes
-    const deliveryFee = this.calculateDeliveryFee(subtotal);
-    const taxAmount = this.calculateTax(subtotal);
-    const totalAmount = subtotal + deliveryFee + taxAmount;
-
-    // Generate unique order number
-    const orderNumber = await this.generateOrderNumber();
-
-    // Create order
-    const order = this.orderRepository.create({
-      orderNumber,
-      customerId,
-      subtotal,
-      deliveryFee,
-      taxAmount,
-      totalAmount,
-      paymentMethod: createOrderDto.paymentMethod,
-      deliveryAddress: createOrderDto.deliveryAddress,
-      customerName: createOrderDto.customerName,
-      customerPhone: createOrderDto.customerPhone,
-      specialInstructions: createOrderDto.specialInstructions,
-      estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(),
-    });
-
     try {
+      // Check if customer exists
+      const customer = await this.userRepository.findOne({
+        where: { id: customerId },
+      });
+
+      if (!customer) {
+        throw new NotFoundException('Customer not found');
+      }
+
+      // Validate menu items and calculate totals
+      let subtotal = 0;
+      const orderItems: Array<{
+        menuItemId: number;
+        menuItemName: string;
+        unitPrice: number;
+        quantity: number;
+        totalPrice: number;
+        specialRequests?: string;
+      }> = [];
+
+      for (const item of createOrderDto.items) {
+        const menuItem = await this.menuRepository.findOne({
+          where: { id: item.menuItemId },
+        });
+
+        if (!menuItem) {
+          throw new BadRequestException(`Menu item with ID ${item.menuItemId} not found`);
+        }
+
+        if (!menuItem.isActive) {
+          throw new BadRequestException(`Menu item "${menuItem.name}" is not available`);
+        }
+
+        if (menuItem.stock < item.quantity) {
+          throw new BadRequestException(
+            `Insufficient stock for "${menuItem.name}". Available: ${menuItem.stock}, Requested: ${item.quantity}`
+          );
+        }
+
+        const itemTotal = menuItem.price * item.quantity;
+        subtotal += itemTotal;
+
+        orderItems.push({
+          menuItemId: menuItem.id,
+          menuItemName: menuItem.name,
+          unitPrice: menuItem.price,
+          quantity: item.quantity,
+          totalPrice: itemTotal,
+          specialRequests: item.specialRequests,
+        });
+      }
+
+      // Calculate fees 
+      const deliveryFee = this.calculateDeliveryFee(subtotal);
+      const totalAmount = subtotal + deliveryFee;
+
+      // Generate unique order number
+      const orderNumber = await this.generateOrderNumber();
+
+      // Create order
+      const order = this.orderRepository.create({
+        orderNumber,
+        customerId,
+        subtotal,
+        deliveryFee,
+        totalAmount,
+        paymentMethod: createOrderDto.paymentMethod,
+        deliveryAddress: createOrderDto.deliveryAddress,
+        specialInstructions: createOrderDto.specialInstructions,
+        estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(),
+      });
+
       const savedOrder = await this.orderRepository.save(order);
 
       // Create order items
@@ -114,6 +111,7 @@ export class OrderService {
           ...itemData,
           orderId: savedOrder.id,
         });
+
         await this.orderItemRepository.save(orderItem);
 
         // Update menu item stock
@@ -128,8 +126,16 @@ export class OrderService {
       await this.sendOrderConfirmationEmail(savedOrder);
 
       return await this.findOne(savedOrder.id);
+
     } catch (error) {
-      throw new InternalServerErrorException('Failed to create order');
+      // Re-throw known exceptions
+      if (error instanceof NotFoundException ||
+        error instanceof BadRequestException) {
+        throw error;
+      }
+
+      // For unknown errors, provide more details
+      throw new InternalServerErrorException(`Failed to create order: ${error.message}`);
     }
   }
 
@@ -193,11 +199,15 @@ export class OrderService {
 
   async findCustomerOrders(customerId: string): Promise<Order[]> {
     return await this.orderRepository.find({
-      where: { customerId },
+      where: {
+        customerId,
+        status: Not(In([OrderStatus.CANCELLED, OrderStatus.DELIVERED]))
+      },
       relations: ['items'],
       order: { createdAt: 'DESC' },
     });
   }
+
 
   async findDeliveryStaffOrders(deliveryStaffId: string): Promise<Order[]> {
     return await this.orderRepository.find({
@@ -256,43 +266,46 @@ export class OrderService {
     return await this.findOne(updatedOrder.id);
   }
 
-
-  async cancelOrder(orderId: string, userId: string, reason?: string): Promise<Order> {
-    const order = await this.findOne(orderId);
+  async cancelOrderAndDelete(id: string, userId: string, reason?: string): Promise<{ message: string }> {
+    // Find the order by ID including its items
+    const order = await this.findOne(id);
     const user = await this.userRepository.findOne({ where: { id: userId } });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Check if user can cancel this order
+    // Only the customer who placed the order, or admins/staff can cancel/delete it
     if (order.customerId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
       throw new ForbiddenException('You can only cancel your own orders');
     }
 
-    // Check if order can be cancelled
-    if ([OrderStatus.DELIVERED, OrderStatus.CANCELLED].includes(order.status)) {
-      throw new BadRequestException('Order cannot be cancelled');
+    // Prevent deletion if the order is already delivered
+    if (order.status === OrderStatus.DELIVERED) {
+      throw new BadRequestException('Delivered orders cannot be cancelled or deleted.');
     }
 
-    order.status = OrderStatus.CANCELLED;
-
-    // Restore stock for cancelled order
+    // Restore stock for each ordered menu item
     for (const item of order.items) {
       await this.menuRepository.increment(
         { id: item.menuItemId },
         'stock',
-        item.quantity
+        item.quantity,
       );
     }
 
-    const updatedOrder = await this.orderRepository.save(order);
+    // Delete all order items first to avoid foreign key constraint errors
+    await this.orderItemRepository.delete({ orderId: id });
 
-    // Send cancellation notification
-    await this.sendCancellationNotification(updatedOrder, reason);
+    // Delete the order record itself
+    await this.orderRepository.delete(id);
 
-    return await this.findOne(updatedOrder.id);
+    // Optionally send cancellation notification email to customer
+    await this.sendCancellationNotification(order, reason);
+
+    return { message: `Order ${order.orderNumber} and its details have been deleted successfully.` };
   }
+
 
   async getOrderStatistics(userId: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -327,16 +340,52 @@ export class OrderService {
     };
   }
 
+  async assignDeliveryStaff(orderId: string, deliveryStaffId: string, adminId: string): Promise<Order> {
+    const admin = await this.userRepository.findOne({ where: { id: adminId } });
+    if (!admin || admin.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('Only admins can assign delivery staff');
+    }
+
+    const order = await this.findOne(orderId);
+    const deliveryStaff = await this.userRepository.findOne({
+      where: { id: deliveryStaffId, role: UserRole.DELIVERY_STAFF },
+    });
+
+    if (!deliveryStaff) {
+      throw new BadRequestException('Invalid delivery staff ID');
+    }
+
+    if (order.status !== OrderStatus.READY) {
+      throw new BadRequestException('Order must be ready before assigning delivery staff');
+    }
+
+    order.deliveryStaffId = deliveryStaffId;
+    order.status = OrderStatus.OUT_FOR_DELIVERY;
+
+    return await this.orderRepository.save(order);
+  }
+
+  async getAvailableDeliveryStaff(): Promise<User[]> {
+    return await this.userRepository.find({
+      where: { role: UserRole.DELIVERY_STAFF, status: UserStatus.ACTIVE },
+      select: ['id', 'name', 'phone', 'email'],
+    });
+  }
+
+  // Method to update order payment status (called by payment service)
+  async updateOrderPaymentStatus(orderId: string, paymentStatus: PaymentStatus): Promise<Order> {
+    const order = await this.findOne(orderId);
+    order.paymentStatus = paymentStatus;
+    return await this.orderRepository.save(order);
+  }
+
   private calculateDeliveryFee(subtotal: number): number {
     // Simple delivery fee calculation - you can customize this
     if (subtotal >= 50000) return 0; // Free delivery for orders above 50k UGX
     return 5000; // 5k UGX delivery fee
   }
 
-  private calculateTax(subtotal: number): number {
-    // 18% VAT in Uganda
-    return subtotal * 0.18;
-  }
+
 
   private calculateEstimatedDeliveryTime(): Date {
     const now = new Date();
@@ -471,37 +520,5 @@ export class OrderService {
     } catch (error) {
       console.error('Failed to send cancellation notification:', error);
     }
-  }
-
-  async assignDeliveryStaff(orderId: string, deliveryStaffId: string, adminId: string): Promise<Order> {
-    const admin = await this.userRepository.findOne({ where: { id: adminId } });
-    if (!admin || admin.role !== UserRole.ADMIN) {
-      throw new ForbiddenException('Only admins can assign delivery staff');
-    }
-
-    const order = await this.findOne(orderId);
-    const deliveryStaff = await this.userRepository.findOne({
-      where: { id: deliveryStaffId, role: UserRole.DELIVERY_STAFF },
-    });
-
-    if (!deliveryStaff) {
-      throw new BadRequestException('Invalid delivery staff ID');
-    }
-
-    if (order.status !== OrderStatus.READY) {
-      throw new BadRequestException('Order must be ready before assigning delivery staff');
-    }
-
-    order.deliveryStaffId = deliveryStaffId;
-    order.status = OrderStatus.OUT_FOR_DELIVERY;
-
-    return await this.orderRepository.save(order);
-  }
-
-  async getAvailableDeliveryStaff(): Promise<User[]> {
-    return await this.userRepository.find({
-      where: { role: UserRole.DELIVERY_STAFF, status: UserStatus.ACTIVE },
-      select: ['id', 'name', 'phone', 'email'],
-    });
   }
 }

@@ -45,14 +45,14 @@ export class CreateOrderDto {
   @MaxLength(500, { message: 'Delivery address must not exceed 500 characters' })
   deliveryAddress: string;
 
-  @IsString()
-  @IsNotEmpty()
-  @MinLength(2, { message: 'Customer name must be at least 2 characters' })
-  @MaxLength(100, { message: 'Customer name must not exceed 100 characters' })
-  customerName: string;
+//   @IsString()
+//   @IsNotEmpty()
+//   @MinLength(2, { message: 'Customer name must be at least 2 characters' })
+//   @MaxLength(100, { message: 'Customer name must not exceed 100 characters' })
+//   customerName: string;
 
-  @IsPhoneNumber('UG')
-  customerPhone: string;
+//   @IsPhoneNumber('UG')
+//   customerPhone: string;
 
   @IsOptional()
   @IsString()

@@ -19,7 +19,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PaymentService } from './payment.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
-import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { PaymentQueryDto } from './dto/payment-query.dto';
 import { MobileMoneyPaymentDto } from './dto/mobile-money-payment.dto';
@@ -74,6 +73,15 @@ export class PaymentController {
   }
 
   @UseGuards(AuthenticationGuard)
+  @Get('order/:orderId/status')
+  async getOrderPaymentStatus(
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Req() req
+  ) {
+    return await this.paymentService.getOrderPaymentStatus(orderId, req.user.userId);
+  }
+
+  @UseGuards(AuthenticationGuard)
   @Get('reference/:reference')
   async findByReference(@Param('reference') reference: string, @Req() req) {
     const payment = await this.paymentService.findByReference(reference);
@@ -125,12 +133,12 @@ export class PaymentController {
 
   @UseGuards(AuthenticationGuard)
   @Patch(':id/cancel')
-  async cancelPayment(
+  async cancelPendingPayment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
     @Req() req
   ) {
-    return await this.paymentService.cancelPayment(id, req.user.userId, reason);
+    return await this.paymentService.cancelPendingPayment(id, req.user.userId, reason);
   }
 
   // Webhook endpoints for payment providers

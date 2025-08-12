@@ -19,7 +19,6 @@ import { Repository } from 'typeorm';
 import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
-import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { AuthenticationGuard } from '../guards/authentication.guard';
 import { RoleGuard } from '../guards/role.guard';
@@ -32,10 +31,10 @@ export class OrderController {
     private readonly orderService: OrderService,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-  ) {}
+  ) { }
 
   @UseGuards(AuthenticationGuard, RoleGuard)
-  @Roles(UserRole.ADMIN, UserRole.STAFF)
+  @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.CUSTOMER)
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async create(@Body() createOrderDto: CreateOrderDto, @Req() req) {
@@ -45,7 +44,7 @@ export class OrderController {
   @UseGuards(AuthenticationGuard, RoleGuard)
   @Roles(UserRole.ADMIN, UserRole.STAFF)
   @Get()
-  async findAll(@Query() queryDto: OrderQueryDto) { 
+  async findAll(@Query() queryDto: OrderQueryDto) {
     return await this.orderService.findAll(queryDto);
   }
 
@@ -81,13 +80,13 @@ export class OrderController {
   async findByOrderNumber(@Param('orderNumber') orderNumber: string, @Req() req) {
     const order = await this.orderService.findByOrderNumber(orderNumber);
     const user = await this.userRepository.findOne({ where: { id: req.user.userId } });
-    
+
     // Check if user can view this order
-    if (order.customerId !== req.user.userId && 
-        (!user || ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(user.role))) {
+    if (order.customerId !== req.user.userId &&
+      (!user || ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(user.role))) {
       throw new ForbiddenException('You can only view your own orders');
     }
-    
+
     return order;
   }
 
@@ -96,13 +95,13 @@ export class OrderController {
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     const order = await this.orderService.findOne(id);
     const user = await this.userRepository.findOne({ where: { id: req.user.userId } });
-    
+
     // Check if user can view this order
-    if (order.customerId !== req.user.userId && 
-        (!user || ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(user.role))) {
+    if (order.customerId !== req.user.userId &&
+      (!user || ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(user.role))) {
       throw new ForbiddenException('You can only view your own orders');
     }
-    
+
     return order;
   }
 
@@ -116,17 +115,6 @@ export class OrderController {
     return await this.orderService.updateStatus(id, updateStatusDto, req.user.userId);
   }
 
-  @UseGuards(AuthenticationGuard, RoleGuard)
-  @Roles(UserRole.ADMIN, UserRole.STAFF)
-  @Patch(':id/payment-status')
-  async updatePaymentStatus(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() updatePaymentDto: UpdatePaymentStatusDto,
-    @Req() req
-  ) {
-    return await this.orderService.updatePaymentStatus(id, updatePaymentDto, req.user.userId);
-  }
-
   @UseGuards(AuthenticationGuard)
   @Patch(':id/cancel')
   @HttpCode(HttpStatus.OK)
@@ -135,7 +123,7 @@ export class OrderController {
     @Body('reason') reason: string,
     @Req() req
   ) {
-    return await this.orderService.cancelOrder(id, req.user.userId, reason);
+    return await this.orderService.cancelOrderAndDelete(id, req.user.userId, reason);
   }
 
   @UseGuards(AuthenticationGuard, RoleGuard)

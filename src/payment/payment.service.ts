@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, In } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Payment, PaymentStatus, PaymentMethod, MobileMoneyProvider, PaymentWebhook } from './entities/payment.entity';
 import { Order, OrderStatus } from '../order/entities/order.entity';
@@ -62,18 +62,40 @@ export class PaymentService {
       throw new BadRequestException('Cannot create payment for this order status');
     }
 
-    // Check if payment already exists for this order
+    // Check if payment already exists for this order (any active payment)
     const existingPayment = await this.paymentRepository.findOne({
-      where: { orderId: createPaymentDto.orderId, status: PaymentStatus.COMPLETED },
+      where: { 
+        orderId: createPaymentDto.orderId, 
+        status: In([PaymentStatus.COMPLETED, PaymentStatus.PENDING, PaymentStatus.PROCESSING])
+      },
     });
 
     if (existingPayment) {
-      throw new BadRequestException('Order has already been paid');
+      if (existingPayment.status === PaymentStatus.COMPLETED) {
+        throw new BadRequestException('Order has already been paid successfully');
+      } else if (existingPayment.status === PaymentStatus.PENDING) {
+        throw new BadRequestException('A payment for this order is already pending. Please complete or cancel the existing payment first.');
+      } else if (existingPayment.status === PaymentStatus.PROCESSING) {
+        throw new BadRequestException('A payment for this order is currently being processed. Please wait for it to complete.');
+      }
     }
 
-    // Validate amount matches order total
-    if (createPaymentDto.amount !== order.totalAmount) {
-      throw new BadRequestException('Payment amount must match order total');
+    // Convert both amounts to numbers and round to 2 decimal places for comparison
+    const paymentAmount = Number(Number(createPaymentDto.amount).toFixed(2));
+    const orderTotal = Number(Number(order.totalAmount).toFixed(2));
+    
+    // this.logger.log(`Payment amount (from DTO): ${paymentAmount}`);
+    // this.logger.log(`Order total amount (from DB): ${orderTotal}`);
+    // this.logger.log(`Amount types - Payment: ${typeof paymentAmount}, Order: ${typeof orderTotal}`);
+    // this.logger.log(`Amounts equal: ${paymentAmount === orderTotal}`);
+    // this.logger.log(`Difference: ${Math.abs(paymentAmount - orderTotal)}`);
+
+    // Use a tolerance for floating point comparison (1 cent tolerance)
+    const tolerance = 0.01;
+    if (Math.abs(paymentAmount - orderTotal) > tolerance) {
+      throw new BadRequestException(
+        `Payment amount (${paymentAmount}) must match order total (${orderTotal}). Difference: ${Math.abs(paymentAmount - orderTotal)}`
+      );
     }
 
     const paymentReference = await this.generatePaymentReference();
@@ -620,7 +642,51 @@ export class PaymentService {
     });
   }
 
-  async cancelPayment(paymentId: string, userId: string, reason?: string): Promise<Payment> {
+  async getOrderPaymentStatus(orderId: string, userId: string): Promise<{
+    hasActivePayment: boolean;
+    paymentStatus?: PaymentStatus;
+    paymentId?: string;
+    canCreateNewPayment: boolean;
+  }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const order = await this.orderRepository.findOne({ where: { id: orderId } });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Check permissions
+    if (order.customerId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
+      throw new ForbiddenException('You can only check payment status for your own orders');
+    }
+
+    const activePayment = await this.paymentRepository.findOne({
+      where: { 
+        orderId, 
+        status: In([PaymentStatus.COMPLETED, PaymentStatus.PENDING, PaymentStatus.PROCESSING])
+      },
+      order: { createdAt: 'DESC' }
+    });
+
+    if (activePayment) {
+      return {
+        hasActivePayment: true,
+        paymentStatus: activePayment.status,
+        paymentId: activePayment.id,
+        canCreateNewPayment: false
+      };
+    }
+
+    return {
+      hasActivePayment: false,
+      canCreateNewPayment: true
+    };
+  }
+
+  async cancelPendingPayment(paymentId: string, userId: string, reason?: string): Promise<Payment> {
     const payment = await this.paymentRepository.findOne({
       where: { id: paymentId },
       relations: ['order'],
@@ -640,21 +706,25 @@ export class PaymentService {
       throw new ForbiddenException('You can only cancel your own payments');
     }
 
-    // Check if payment can be cancelled
-    if ([PaymentStatus.COMPLETED, PaymentStatus.REFUNDED].includes(payment.status)) {
-      throw new BadRequestException('Payment cannot be cancelled');
+    // Only allow cancellation of pending or processing payments
+    if (![PaymentStatus.PENDING, PaymentStatus.PROCESSING].includes(payment.status)) {
+      throw new BadRequestException(`Cannot cancel payment with status: ${payment.status}`);
     }
 
     payment.status = PaymentStatus.CANCELLED;
     payment.gatewayResponse = JSON.stringify({
       ...JSON.parse(payment.gatewayResponse || '{}'),
       cancellation: {
-        reason,
+        reason: reason || 'Cancelled by user',
         cancelledBy: userId,
         cancelledAt: new Date(),
       },
     });
 
-    return await this.paymentRepository.save(payment);
+    const updatedPayment = await this.paymentRepository.save(payment);
+    
+    this.logger.log(`Payment ${payment.paymentReference} cancelled by user ${userId}`);
+    
+    return updatedPayment;
   }
 }

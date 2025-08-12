@@ -28,7 +28,7 @@ export enum PaymentStatus {
 }
 
 export enum PaymentMethod {
-  CASH_ON_DELIVERY = 'cash_on_delivery',
+  CASH_ON_DELIVERY = 'cash',
   MOBILE_MONEY = 'mobile_money',
   CARD = 'card',
 }
@@ -74,9 +74,6 @@ export class Order {
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
   deliveryFee: number;
 
-  @Column('decimal', { precision: 10, scale: 2, default: 0 })
-  taxAmount: number;
-
   @Column('decimal', { precision: 10, scale: 2 })
   totalAmount: number;
 
@@ -85,12 +82,6 @@ export class Order {
 
   @Column({ type: 'varchar', length: 500 })
   deliveryAddress: string;
-
-  @Column({ type: 'varchar', length: 20 })
-  customerPhone: string;
-
-  @Column({ type: 'varchar', length: 100 })
-  customerName: string;
 
   @Column({ type: 'timestamp', nullable: true })
   estimatedDeliveryTime?: Date;
