@@ -1,0 +1,45 @@
+<mjml>
+  <mj-head>
+    <mj-title>Account Status Update</mj-title>
+  </mj-head>
+  <mj-body background-color="#f0f0f0">
+    <mj-section background-color="#ffffff" padding="20px">
+      <mj-column>
+        <mj-text
+          font-size="24px"
+          color="#333333"
+          font-weight="bold"
+          align="center"
+        >
+          Account Status Update
+        </mj-text>
+        <mj-text font-size="16px" color="#666666" line-height="1.6">
+          Dear {{userName}},
+        </mj-text>
+        <mj-text font-size="16px" color="#666666" line-height="1.6">
+          Your account status has been updated from <strong>{{oldStatus}}</strong> to <strong>{{newStatus}}</strong>.
+        </mj-text>
+        {{#if isApproved}}
+        <mj-text font-size="16px" color="#28a745" line-height="1.6">
+          🎉 Congratulations! Your account has been approved. You can now access all features.
+        </mj-text>
+        <mj-button
+          background-color="#28a745"
+          color="#ffffff"
+          href="https://yourapp.com/login"
+          font-size="16px"
+          padding="15px 25px"
+          border-radius="5px"
+        >
+          Login Now
+        </mj-button>
+        {{/if}}
+        {{#if isSuspended}}
+        <mj-text font-size="16px" color="#dc3545" line-height="1.6">
+          ⚠️ Your account has been suspended. Please contact support if you believe this is an error.
+        </mj-text>
+        {{/if}}
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

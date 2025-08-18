@@ -1,28 +1,44 @@
 import * as nodemailer from 'nodemailer';
+import mjml from 'mjml'; // Change this import
+import * as fs from 'fs';
+import * as path from 'path';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+interface TemplateVariables {
+  [key: string]: any;
+}
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private transporter: nodemailer.Transporter;
+  private readonly templatesDir: string;
+  private readonly compiledTemplatesDir: string;
 
   constructor(private configService: ConfigService) {
+    // Setting up template directories
+    this.templatesDir = path.join(process.cwd(), 'src', 'templates');
+    this.compiledTemplatesDir = path.join(process.cwd(), 'dist', 'compiled-templates');
+
+    // Ensuring compiled templates directory exist
+    if (!fs.existsSync(this.compiledTemplatesDir)) {
+      fs.mkdirSync(this.compiledTemplatesDir, { recursive: true });
+    }
+
     this.transporter = nodemailer.createTransport({
       host: this.configService.get('email.host'),
-      port: this.configService.get('email.port'),
-      secure: false, 
+      port: this.configService.get<number>('email.port'),
+      secure: false,
       auth: {
-        username: this.configService.get('email.username'), 
         user: this.configService.get('email.user'),
         pass: this.configService.get('email.pass'),
       },
       tls: {
-        rejectUnauthorized: false
-      }
+        rejectUnauthorized: false,
+      },
     });
 
-    // Verify connection configuration
     this.verifyConnection();
   }
 
@@ -35,95 +51,152 @@ export class MailService {
     }
   }
 
-  async sendPasswordResetEmail(to: string, token: string) {
+  private compileTemplate(templateName: string, variables: TemplateVariables = {}): string {
     try {
-      const resetLink = `http://yourapp.com/reset-password?token=${token}`;
-      const mailOptions = {
-        from: this.configService.get('email.username'), // Use the authenticated email
-        to: to,
-        subject: 'Password Reset Request - Ecommerce-APi',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2>Password Reset Request</h2>
-            <p>You requested a password reset for your Ecommerce API account.</p>
-            <p>Click the link below to reset your password:</p>
-            <p><a href="${resetLink}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a></p>
-            <p>If you didn't request this, please ignore this email.</p>
-            <p>This link will expire in 1 hour.</p>
-          </div>
-        `,
-      };
+      // Path to MJML template
+      const templatePath = path.join(this.templatesDir, `${templateName}.mjml`);
 
-      const result = await this.transporter.sendMail(mailOptions);
-      this.logger.log(`Password reset email sent successfully to ${to}`, result.messageId);
-      return result;
+      // Path where compiled HTML will be saved
+      const compiledTemplatePath = path.join(this.compiledTemplatesDir, `${templateName}.html`);
+
+      if (!fs.existsSync(templatePath)) {
+        throw new Error(`Template ${templateName}.mjml not found at ${templatePath}`);
+      }
+
+      // this.logger.log(`Using template at: ${templatePath}`);
+
+      let mjmlContent = fs.readFileSync(templatePath, 'utf-8');
+
+      // Simple variable replacement
+      Object.keys(variables).forEach((key) => {
+        const value = variables[key];
+
+        // Replace {{variableName}}
+        const simpleRegex = new RegExp(`{{${key}}}`, 'g');
+        mjmlContent = mjmlContent.replace(simpleRegex, String(value));
+
+        // Handle conditionals {{#if key}}...{{/if}}
+        if (typeof value === 'boolean') {
+          const ifRegex = new RegExp(`{{#if ${key}}}([\\s\\S]*?){{/if}}`, 'g');
+          mjmlContent = mjmlContent.replace(ifRegex, value ? '$1' : '');
+        }
+      });
+
+      // Removing unused handlebars-style expressions
+      mjmlContent = mjmlContent.replace(/{{[^}]*}}/g, '');
+
+      // Compile MJML to HTML - Fixed import usage
+      const compilationResult = mjml(mjmlContent);
+
+      if (compilationResult.errors && compilationResult.errors.length > 0) {
+        this.logger.warn(`MJML compilation warnings for ${templateName}:`, compilationResult.errors);
+      }
+
+      const html = compilationResult.html;
+
+      try {
+        fs.writeFileSync(compiledTemplatePath, html, 'utf-8');
+        this.logger.log(`Compiled template saved to: ${compiledTemplatePath}`);
+      } catch (writeError) {
+        this.logger.warn(`Failed to save compiled template to ${compiledTemplatePath}:`, writeError);
+      }
+
+      return html;
     } catch (error) {
-      this.logger.error(`Failed to send password reset email to ${to}:`, error);
+      this.logger.error(`Failed to compile template ${templateName}:`, error);
       throw error;
     }
   }
-  async sendDeliveryStaffRegistrationEmails(adminEmail: string, deliveryStaff: {
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  vehicleType: string;
-  licenseNumber: string;
-  selfieUrl: string;
-  nationalIdFrontUrl: string;
-  nationalIdBackUrl: string;
-}) {
-  const { email, firstName, lastName, phone, vehicleType, licenseNumber, selfieUrl, nationalIdFrontUrl, nationalIdBackUrl } = deliveryStaff;
 
-  // Email to Admin
-  const adminMailOptions = {
-    from: this.configService.get('email.user'),
-    to: adminEmail,
-    subject: 'New Delivery Staff Registration Request',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px;">
-        <h2>New Delivery Staff Registration</h2>
-        <p>A new delivery staff member has submitted a registration request.</p>
-        <ul>
-          <li><strong>Name:</strong> ${firstName} ${lastName}</li>
-          <li><strong>Email:</strong> ${email}</li>
-          <li><strong>Phone:</strong> ${phone}</li>
-          <li><strong>Selfie URL:</strong> <a href="${selfieUrl}" target="_blank">View Selfie</a></li>
-          <li><strong>National ID Front URL:</strong> <a href="${nationalIdFrontUrl}" target="_blank">View ID Front</a></li>
-          <li><strong>National ID Back URL:</strong> <a href="${nationalIdBackUrl}" target="_blank">View ID Back</a></li>
-          <li><strong>Vehicle Type:</strong> ${vehicleType}</li>
-          <li><strong>License Number:</strong> ${licenseNumber}</li>
-        </ul>
-        <p>Please review and approve this request in the admin panel.</p>
-      </div>
-    `,
-  };
+  async sendTemplateEmail(
+    to: string,
+    subject: string,
+    templateName: string,
+    variables: TemplateVariables = {},
+  ) {
+    try {
+      const html = this.compileTemplate(templateName, variables);
 
-  // Email to Delivery Staff
-  const userMailOptions = {
-    from: this.configService.get('email.user'),
-    to: email,
-    subject: 'Delivery Staff Registration Received',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px;">
-        <h2>Registration Received</h2>
-        <p>Dear ${firstName},</p>
-        <p>Thank you for registering as a delivery staff. Your request has been received and is currently under review by our admin team.</p>
-        <p>You will receive a confirmation email once your account is approved.</p>
-        <p>Best regards,<br />Fareed.Developer</p>
-      </div>
-    `,
-  };
+      const mailOptions = {
+        from: this.configService.get('email.user'),
+        to,
+        subject,
+        html,
+      };
 
-  try {
-    const adminResult = await this.transporter.sendMail(adminMailOptions);
-    const userResult = await this.transporter.sendMail(userMailOptions);
-    this.logger.log(`Registration notification sent to admin (${adminEmail}) and user (${email})`);
-    return { adminResult, userResult };
-  } catch (error) {
-    this.logger.error('Error sending delivery staff registration emails', error);
-    throw error;
+      const result = await this.transporter.sendMail(mailOptions);
+      this.logger.log(
+        `Email sent successfully to ${to} using template ${templateName}`,
+        result.messageId,
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to send email to ${to} using template ${templateName}:`, error);
+      throw error;
+    }
   }
-}
 
+  async sendWelcomeEmail(to: string, name: string, role: string, status: string) {
+    return this.sendTemplateEmail(to, 'Welcome to Our Platform', 'welcome-user', {
+      name,
+      email: to,
+      role,
+      status,
+      isPendingApproval: status === 'pending_approval',
+    });
+  }
+
+  async sendPasswordResetEmail(to: string, resetToken: string, userName: string) {
+    const resetLink = `${this.configService.get(
+      'app.frontendUrl',
+      'http://localhost:3000',
+    )}/reset-password?token=${resetToken}`;
+
+    return this.sendTemplateEmail(to, 'Password Reset Request', 'password-reset', {
+      userName,
+      resetLink,
+    });
+  }
+
+  async sendDeliveryStaffRegistrationToAdmin(adminEmail: string, deliveryStaff: any) {
+    return this.sendTemplateEmail(
+      adminEmail,
+      'New Delivery Staff Registration Request',
+      'delivery-staff-registration-admin',
+      deliveryStaff,
+    );
+  }
+
+  async sendDeliveryStaffConfirmation(to: string, firstName: string) {
+    return this.sendTemplateEmail(
+      to,
+      'Registration Received - Under Review',
+      'delivery-staff-confirmation',
+      { firstName },
+    );
+  }
+
+  async sendUserStatusUpdateEmail(
+    to: string,
+    userName: string,
+    oldStatus: string,
+    newStatus: string,
+  ) {
+    return this.sendTemplateEmail(to, 'Account Status Update', 'user-status-updated', {
+      userName,
+      oldStatus,
+      newStatus,
+      isApproved: newStatus === 'active',
+      isSuspended: newStatus === 'suspended',
+    });
+  }
+
+  getCompiledTemplatePath(templateName: string): string {
+    return path.join(this.compiledTemplatesDir, `${templateName}.html`);
+  }
+
+  hasCompiledTemplate(templateName: string): boolean {
+    const compiledPath = this.getCompiledTemplatePath(templateName);
+    return fs.existsSync(compiledPath);
+  }
 }

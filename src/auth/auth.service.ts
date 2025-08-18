@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { nanoid } from 'nanoid';
@@ -18,10 +19,14 @@ import { RefreshToken } from './entities/refresh-token.entity';
 import { ResetToken } from './entities/reset-token.entity';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
-import { MailService } from '../services/mail.service';
 import { RegisterDeliveryStaffDto } from './dto/register-delivery.dto';
 import { DeliveryStaff } from './entities/delivery-staff.entity';
 import { ConfigService } from '@nestjs/config';
+
+import { UserRegisteredEvent } from '../events/user-registered.event';
+import { PasswordResetRequestedEvent } from '../events/password-reset-requested.event';
+import { DeliveryStaffRegisteredEvent } from '../events/delivery-staff-registered.event';
+import { UserStatusUpdatedEvent } from '../events/user-status-updated.event';
 
 @Injectable()
 export class AuthService {
@@ -39,9 +44,9 @@ export class AuthService {
     private deliveryStaffRepository: Repository<DeliveryStaff>,
 
     private jwtService: JwtService,
-    private mailService: MailService,
-      private configService: ConfigService,
-  ) { }
+    private configService: ConfigService,
+    private eventEmitter: EventEmitter2, // Add EventEmitter
+  ) {}
 
   async signup(signupData: SignupDto) {
     const { email, password, name, role, phone } = signupData;
@@ -71,7 +76,15 @@ export class AuthService {
 
     await this.userRepository.save(user);
 
-    let message = 'User created successfully'; 
+    this.eventEmitter.emit('user.registered', new UserRegisteredEvent(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+      user.status,
+    ));
+
+    let message = 'User created successfully';
     if (status === UserStatus.PENDING_APPROVAL) {
       message = 'Account created successfully. Pending admin approval.';
     }
@@ -84,77 +97,78 @@ export class AuthService {
     };
   }
 
- async registerDeliveryStaff(dto: RegisterDeliveryStaffDto) {
-  const existingUser = await this.userRepository.findOne({
-    where: { email: dto.email },
-  });
-
-  if (existingUser) {
-    throw new BadRequestException('Email is already registered');
-  }
-
-  const hashedPassword = await bcrypt.hash(dto.password, 10);
-
-  const user = this.userRepository.create({
-    email: dto.email,
-    password: hashedPassword,
-    role: UserRole.DELIVERY_STAFF,
-    status: UserStatus.PENDING_APPROVAL,
-    phone: dto.phone,
-    name: `${dto.firstName} ${dto.lastName}`,
-  });
-
-  try {
-    await this.userRepository.save(user);
-
-    const deliveryStaff = this.deliveryStaffRepository.create({
-      user,
-      email: dto.email,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-      phone: dto.phone,
-      address: dto.address,
-      vehicleType: dto.vehicleType,
-      licenseNumber: dto.licenseNumber,
-      selfieUrl: dto.selfieUrl,
-      nationalIdFrontUrl: dto.nationalIdFrontUrl,
-      nationalIdBackUrl: dto.nationalIdBackUrl,
-      isVerified: false,
-      isActive: true,
+  async registerDeliveryStaff(dto: RegisterDeliveryStaffDto) {
+    const existingUser = await this.userRepository.findOne({
+      where: { email: dto.email },
     });
 
-    await this.deliveryStaffRepository.save(deliveryStaff);
+    if (existingUser) {
+      throw new BadRequestException('Email is already registered');
+    }
 
-  const adminEmail = this.configService.get('ADMIN_EMAIL') ?? 'admin@example.com';
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
 
-if (!adminEmail) {
-  throw new InternalServerErrorException('Admin email not configured');
-}
+    const user = this.userRepository.create({
+      email: dto.email,
+      password: hashedPassword,
+      role: UserRole.DELIVERY_STAFF,
+      status: UserStatus.PENDING_APPROVAL,
+      phone: dto.phone,
+      name: `${dto.firstName} ${dto.lastName}`,
+    });
 
-await this.mailService.sendDeliveryStaffRegistrationEmails(adminEmail, {
-  email: user.email,
-  firstName: dto.firstName,
-  lastName: dto.lastName,
-  phone: dto.phone,
-  vehicleType: dto.vehicleType,
-  licenseNumber: dto.licenseNumber,
-  selfieUrl: '',
-  nationalIdFrontUrl: '',
-  nationalIdBackUrl: ''
-});
+    try {
+      await this.userRepository.save(user);
 
+      const deliveryStaff = this.deliveryStaffRepository.create({
+        user,
+        email: dto.email,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        phone: dto.phone,
+        address: dto.address,
+        vehicleType: dto.vehicleType,
+        licenseNumber: dto.licenseNumber,
+        selfieUrl: dto.selfieUrl,
+        nationalIdFrontUrl: dto.nationalIdFrontUrl,
+        nationalIdBackUrl: dto.nationalIdBackUrl,
+        isVerified: false,
+        isActive: true,
+      });
 
-    return {
-      status: 'pending_review',
-      message:
-        'Registration successful. You will receive an email notification at your registered email after admin review.',
-      userId: user.id,
-    };
-  } catch (error) {
-    throw new InternalServerErrorException('Failed to register delivery staff');
+      await this.deliveryStaffRepository.save(deliveryStaff);
+
+      const adminEmail = this.configService.get('ADMIN_EMAIL') ?? 'admin@example.com';
+
+      if (!adminEmail) {
+        throw new InternalServerErrorException('Admin email not configured');
+      }
+
+      this.eventEmitter.emit('delivery-staff.registered', new DeliveryStaffRegisteredEvent(
+        adminEmail,
+        {
+          email: user.email,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          phone: dto.phone,
+          vehicleType: dto.vehicleType,
+          licenseNumber: dto.licenseNumber,
+          selfieUrl: dto.selfieUrl,
+          nationalIdFrontUrl: dto.nationalIdFrontUrl,
+          nationalIdBackUrl: dto.nationalIdBackUrl,
+        },
+      ));
+
+      return {
+        status: 'pending_review',
+        message:
+          'Registration successful. You will receive an email notification at your registered email after admin review.',
+        userId: user.id,
+      };
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to register delivery staff');
+    }
   }
-}
-
 
   async login(credentials: LoginDto) {
     const { email, password } = credentials;
@@ -221,8 +235,11 @@ await this.mailService.sendDeliveryStaffRegistrationEmails(adminEmail, {
       });
 
       await this.resetTokenRepository.save(resetTokenEntity);
-
-      await this.mailService.sendPasswordResetEmail(email, resetToken);
+      this.eventEmitter.emit('user.password-reset-requested', new PasswordResetRequestedEvent(
+        email,
+        resetToken,
+        user.name,
+      ));
     }
 
     return { message: 'If this user exists, they will receive an email' };
@@ -325,8 +342,16 @@ await this.mailService.sendDeliveryStaffRegistrationEmails(adminEmail, {
       throw new NotFoundException('User not found');
     }
 
+    const oldStatus = targetUser.status;
     targetUser.status = status;
     await this.userRepository.save(targetUser);
+
+    this.eventEmitter.emit('user.status-updated', new UserStatusUpdatedEvent(
+      targetUser.email,
+      targetUser.name,
+      oldStatus,
+      status,
+    ));
 
     return { message: 'User status updated successfully', user: targetUser };
   }

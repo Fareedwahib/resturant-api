@@ -5,15 +5,14 @@ import { AuthController } from './auth.controller';
 import { User } from './entities/user.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { ResetToken } from './entities/reset-token.entity';
-import { DeliveryStaff } from './entities/delivery-staff.entity';  
-import { MailService } from '../services/mail.service';
+import { DeliveryStaff } from './entities/delivery-staff.entity';
 
-@Module({ 
+@Module({
   imports: [
-    TypeOrmModule.forFeature([User, RefreshToken, ResetToken, DeliveryStaff]),  
+    TypeOrmModule.forFeature([User, RefreshToken, ResetToken, DeliveryStaff]),
   ],
   controllers: [AuthController],
-  providers: [AuthService, MailService],
+  providers: [AuthService],
   exports: [AuthService],
 })
 export class AuthModule {}

@@ -5,8 +5,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
-// import { User } fromimport { Module } from '@nestjs/common';
 import { User } from './auth/entities/user.entity';
+import { UserListener } from './listeners/user.listener';
+import { AuditListener } from './listeners/audit.listener';
 import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { ResetToken } from './auth/entities/reset-token.entity';
 import { DeliveryStaff } from './auth/entities/delivery-staff.entity';
@@ -18,6 +19,8 @@ import { PaymentModule } from './payment/payment.module';
 import { Order, OrderItem } from './order/entities/order.entity';
 import { Payment, PaymentWebhook } from './payment/entities/payment.entity';
 import config from './config/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { MailService } from './services/mail.service';
 
 @Module({
   imports: [
@@ -25,6 +28,22 @@ import config from './config/config';
       isGlobal: true,
       cache: true,
       load: [config],
+    }),
+    EventEmitterModule.forRoot({
+      // Set this to `true` to use wildcards
+      wildcard: false,
+      // The delimiter used to segment namespaces
+      delimiter: '.',
+      // Set this to `true` if you want to emit the newListener event
+      newListener: false,
+      // Set this to `true` if you want to emit the removeListener event
+      removeListener: false,
+      // The maximum amount of listeners that can be assigned to an event
+      maxListeners: 10,
+      // Show event name in memory leak message when more than maximum amount of listeners are assigned
+      verboseMemoryLeak: false,
+      // Disable throwing uncaughtException if an error event is emitted and it has no listeners
+      ignoreErrors: false,
     }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
@@ -86,7 +105,11 @@ import config from './config/config';
  ],
 
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService,
+    MailService,
+    UserListener,
+    AuditListener,
+  ],
 })
 
 export class AppModule {}

@@ -1,0 +1,32 @@
+<mjml>
+  <mj-head>
+    <mj-title>Registration Received</mj-title>
+  </mj-head>
+  <mj-body background-color="#f0f0f0">
+    <mj-section background-color="#ffffff" padding="20px">
+      <mj-column>
+        <mj-text
+          font-size="24px"
+          color="#333333"
+          font-weight="bold"
+          align="center"
+        >
+          Registration Received
+        </mj-text>
+        <mj-text font-size="16px" color="#666666" line-height="1.6">
+          Dear {{firstName}},
+        </mj-text>
+        <mj-text font-size="16px" color="#666666" line-height="1.6">
+          Thank you for registering as a delivery staff member. Your request has been received and is currently under review by our admin team.
+        </mj-text>
+        <mj-text font-size="16px" color="#666666" line-height="1.6">
+          You will receive a confirmation email once your account is approved.
+        </mj-text>
+        <mj-text font-size="14px" color="#888888">
+          Best regards,<br />
+          The Team
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

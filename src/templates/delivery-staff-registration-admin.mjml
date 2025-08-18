@@ -1,0 +1,87 @@
+<mjml>
+  <mj-head>
+    <mj-title>New Delivery Staff Registration</mj-title>
+  </mj-head>
+  <mj-body background-color="#f0f0f0">
+    <mj-section background-color="#ffffff" padding="20px">
+      <mj-column>
+        <mj-text
+          font-size="24px"
+          color="#333333"
+          font-weight="bold"
+          align="center"
+        >
+          New Delivery Staff Registration
+        </mj-text>
+        <mj-text font-size="16px" color="#666666" line-height="1.6">
+          A new delivery staff member has submitted a registration request:
+        </mj-text>
+        <mj-table>
+          <tr style="border-bottom:1px solid #ecedee;text-align:left;">
+            <th style="padding: 10px; font-weight: bold;">Name</th>
+            <td style="padding: 10px;">{{firstName}} {{lastName}}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ecedee;text-align:left;">
+            <th style="padding: 10px; font-weight: bold;">Email</th>
+            <td style="padding: 10px;">{{email}}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ecedee;text-align:left;">
+            <th style="padding: 10px; font-weight: bold;">Phone</th>
+            <td style="padding: 10px;">{{phone}}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ecedee;text-align:left;">
+            <th style="padding: 10px; font-weight: bold;">Vehicle Type</th>
+            <td style="padding: 10px;">{{vehicleType}}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #ecedee;text-align:left;">
+            <th style="padding: 10px; font-weight: bold;">License Number</th>
+            <td style="padding: 10px;">{{licenseNumber}}</td>
+          </tr>
+        </mj-table>
+        <mj-text font-size="16px" color="#666666" line-height="1.6">
+          Documents:
+        </mj-text>
+        <mj-button
+          background-color="#28a745"
+          color="#ffffff"
+          href="{{selfieUrl}}"
+          font-size="14px"
+          padding="10px 15px"
+          border-radius="3px"
+        >
+          View Selfie
+        </mj-button>
+        <mj-button
+          background-color="#17a2b8"
+          color="#ffffff"
+          href="{{nationalIdFrontUrl}}"
+          font-size="14px"
+          padding="10px 15px"
+          border-radius="3px"
+        >
+          View ID Front
+        </mj-button>
+        <mj-button
+          background-color="#ffc107"
+          color="#000000"
+          href="{{nationalIdBackUrl}}"
+          font-size="14px"
+          padding="10px 15px"
+          border-radius="3px"
+        >
+          View ID Back
+        </mj-button>
+        <mj-button
+          background-color="#007bff"
+          color="#ffffff"
+          href="https://yourapp.com/admin/pending-users"
+          font-size="16px"
+          padding="15px 25px"
+          border-radius="5px"
+        >
+          Review in Admin Panel
+        </mj-button>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
