@@ -1,46 +1,86 @@
 <mjml>
   <mj-head>
     <mj-title>Welcome to Our Restaurant</mj-title>
-    <mj-attributes>
-      <mj-all font-family="Arial, sans-serif" />
-      <mj-text font-size="16px" color="#333333" line-height="24px" />
-      <mj-button background-color="#ff6b35" color="white" />
-    </mj-attributes>
+    <mj-preview>Welcome to our restaurant community!</mj-preview>
+    <mj-font name="Roboto" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700" />
+    <mj-style>
+      .link-nostyle { color: inherit; text-decoration: none }
+    </mj-style>
   </mj-head>
-  <mj-body>
-    <mj-section>
+  <mj-body background-color="#f4f4f4">
+    <mj-section background-color="#ffffff" padding="20px">
       <mj-column>
-        <mj-image width="200px" src="https://via.placeholder.com/200x100/ff6b35/ffffff?text=Restaurant+Logo" alt="Restaurant Logo"></mj-image>
-        <mj-divider border-color="#ff6b35"></mj-divider>
-        <mj-text font-size="24px" color="#ff6b35" align="center" font-weight="bold">
+        <mj-image 
+          width="150px" 
+          src="https://via.placeholder.com/150x75/ff6b35/ffffff?text=Restaurant" 
+          alt="Restaurant Logo"
+          align="center"
+        />
+        
+        <mj-divider border-color="#ff6b35" border-width="2px" padding="20px 0" />
+        
+        <mj-text 
+          font-size="28px" 
+          color="#ff6b35" 
+          align="center" 
+          font-weight="bold"
+          padding="10px 0"
+        >
           Welcome to Our Restaurant!
         </mj-text>
-        <mj-text>
+        
+        <mj-text font-size="18px" color="#333333" line-height="1.6" padding="10px 0">
           Hello {{name}},
         </mj-text>
-        <mj-text>
-          Thank you for joining our restaurant community! We're excited to have you on board.
+        
+        <mj-text font-size="16px" color="#555555" line-height="1.6" padding="10px 0">
+          Thank you for joining our restaurant community! We're excited to have you on board as a {{role}}.
         </mj-text>
-        <mj-text>
+
+        <mj-text font-size="16px" color="#555555" line-height="1.6" padding="10px 0">
+          Your account status: <strong>{{status}}</strong>
+        </mj-text>
+        
+        <mj-text font-size="16px" color="#555555" line-height="1.6" padding="15px 0">
           Here's what you can do with your new account:
         </mj-text>
-        <mj-text>
-          • Browse our delicious menu
-          • Place orders for delivery or pickup
-          • Track your order status
-          • Save your favorite dishes
-          • Get exclusive offers and promotions
+        
+        <mj-text font-size="15px" color="#555555" line-height="1.8" padding="10px 0 10px 20px">
+          🍽️ Browse our delicious menu<br/>
+          📱 Place orders for delivery or pickup<br/>
+          📋 Track your order status<br/>
         </mj-text>
-        <mj-button href="{{appUrl}}/menu" background-color="#ff6b35" color="white" font-size="16px" font-weight="bold" border-radius="5px" padding="15px 30px">
-          Start Ordering Now
+        
+        <mj-button 
+          href="{{appUrl}}" 
+          background-color="#ff6b35" 
+          color="white" 
+          font-size="16px" 
+          font-weight="bold" 
+          border-radius="25px" 
+          padding="15px 30px"
+          align="center"
+        >
+          Start Exploring Now
         </mj-button>
-        <mj-divider border-color="#eeeeee"></mj-divider>
-        <mj-text font-size="14px" color="#666666" align="center">
+        
+        <mj-divider border-color="#eeeeee" padding="30px 0 20px 0" />
+        
+        <mj-text font-size="14px" color="#666666" align="center" line-height="1.5">
           If you have any questions, feel free to contact us at {{supportEmail}}
         </mj-text>
-        <mj-text font-size="12px" color="#999999" align="center">
-          Best regards,<br>
+        
+        <mj-text font-size="13px" color="#999999" align="center" padding="20px 0">
+          Best regards,<br/>
           The Restaurant Team
+        </mj-text>
+      </mj-column>
+    </mj-section>
+    
+    <mj-section background-color="#f4f4f4" padding="20px">
+      <mj-column>
+        <mj-text font-size="12px" color="#999999" align="center">
+          You received this email because you registered an account with us.
         </mj-text>
       </mj-column>
     </mj-section>

@@ -1,0 +1,62 @@
+<mjml>
+  <mj-head>
+    <mj-title>Order Confirmation</mj-title>
+    <mj-attributes>
+      <mj-all font-family="Arial, sans-serif" />
+      <mj-text font-size="16px" color="#333333" line-height="24px" />
+    </mj-attributes>
+  </mj-head>
+  <mj-body background-color="#f5f5f5">
+    <mj-section background-color="#ffffff" padding="30px">
+      <mj-column>
+        <mj-text font-size="28px" color="#28a745" align="center" font-weight="bold">
+          Order Confirmed! 🎉
+        </mj-text>
+        <mj-text font-size="18px" color="#666666">
+          Hi {{customerName}},
+        </mj-text>
+        <mj-text>
+          Thank you for your order! We've received your order <strong>{{orderNumber}}</strong> and it's being processed.
+        </mj-text>
+        
+        <mj-divider border-color="#28a745" border-width="2px" />
+        
+        <mj-text font-size="20px" font-weight="bold" color="#333">
+          Order Details
+        </mj-text>
+        
+        <mj-table>
+          <tr style="background-color:#f8f9fa;font-weight:bold;">
+            <th style="padding:12px;text-align:left;border-bottom:2px solid #dee2e6;">Item</th>
+            <th style="padding:12px;text-align:center;border-bottom:2px solid #dee2e6;">Qty</th>
+            <th style="padding:12px;text-align:right;border-bottom:2px solid #dee2e6;">Price</th>
+            <th style="padding:12px;text-align:right;border-bottom:2px solid #dee2e6;">Total</th>
+          </tr>
+          {{{itemsHtml}}}
+          <tr style="background-color:#f8f9fa;font-weight:bold;border-top:2px solid #28a745;">
+            <td colspan="3" style="padding:12px;text-align:right;">Total Amount:</td>
+            <td style="padding:12px;text-align:right;color:#28a745;font-size:18px;">{{formattedTotalAmount}}</td>
+          </tr>
+        </mj-table>
+        
+        <mj-spacer height="20px" />
+        
+        <mj-text font-weight="bold">Delivery Address:</mj-text>
+        <mj-text color="#666666">{{deliveryAddress}}</mj-text>
+        
+        <mj-text font-weight="bold">Payment Method:</mj-text>
+        <mj-text color="#666666">{{paymentMethod}}</mj-text>
+        
+        <mj-divider border-color="#dee2e6" />
+        
+        <mj-text align="center" color="#666666">
+          We'll keep you updated on your order status. Thank you for choosing us!
+        </mj-text>
+        
+        <mj-button background-color="#28a745" color="white" href="#" border-radius="25px">
+          Track Your Order
+        </mj-button>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

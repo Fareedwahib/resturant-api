@@ -4,9 +4,11 @@ import {
   BadRequestException,
   ForbiddenException,
   InternalServerErrorException,
+  Logger, // Add Logger import
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, FindManyOptions, Not, In } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter'; // Add EventEmitter2 import
 import { Order, OrderItem, OrderStatus, PaymentStatus } from './entities/order.entity';
 import { User, UserRole, UserStatus } from '../auth/entities/user.entity';
 import { Menue } from '../menue/entities/menue.entity';
@@ -15,8 +17,17 @@ import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { MailService } from '../services/mail.service';
 
+// Add event imports
+import { OrderCreatedEvent } from '../events/order-created.event';
+import { OrderStatusUpdatedEvent } from '../events/order-status-updated.event';
+import { OrderCancelledEvent } from '../events/order-cancelled.event';
+import { OrderPaymentUpdatedEvent } from '../events/order-payment-updated.event';
+import { InventoryUpdateRequiredEvent } from '../events/inventory-update-required.event';
+
 @Injectable()
 export class OrderService {
+  private readonly logger = new Logger(OrderService.name); // Add logger
+
   constructor(
     @InjectRepository(Order)
     private orderRepository: Repository<Order>,
@@ -27,6 +38,7 @@ export class OrderService {
     @InjectRepository(Menue)
     private menuRepository: Repository<Menue>,
     private mailService: MailService,
+    private eventEmitter: EventEmitter2, // Add EventEmitter2
   ) { }
 
   async create(createOrderDto: CreateOrderDto, customerId: string): Promise<Order> {
@@ -34,6 +46,7 @@ export class OrderService {
       // Check if customer exists
       const customer = await this.userRepository.findOne({
         where: { id: customerId },
+        select: ['id', 'name', 'email', 'phone'] // Add select for event data
       });
 
       if (!customer) {
@@ -49,6 +62,13 @@ export class OrderService {
         quantity: number;
         totalPrice: number;
         specialRequests?: string;
+      }> = [];
+
+      // Track inventory updates for event
+      const inventoryUpdates: Array<{
+        menuItemId: number;
+        quantity: number;
+        operation: 'decrement' | 'increment';
       }> = [];
 
       for (const item of createOrderDto.items) {
@@ -80,6 +100,13 @@ export class OrderService {
           quantity: item.quantity,
           totalPrice: itemTotal,
           specialRequests: item.specialRequests,
+        });
+
+        // Prepare inventory update for event
+        inventoryUpdates.push({
+          menuItemId: menuItem.id,
+          quantity: item.quantity,
+          operation: 'decrement',
         });
       }
 
@@ -125,6 +152,35 @@ export class OrderService {
       // Send order confirmation email
       await this.sendOrderConfirmationEmail(savedOrder);
 
+      // === EVENT EMISSIONS ===
+      // Emit inventory update event
+      this.eventEmitter.emit('inventory.update-required', new InventoryUpdateRequiredEvent(
+        inventoryUpdates,
+        savedOrder.id,
+        savedOrder.orderNumber
+      ));
+
+      // Emit order created event
+      this.eventEmitter.emit('order.created', new OrderCreatedEvent(
+        savedOrder.id,
+        savedOrder.orderNumber,
+        customer.id,
+        customer.email,
+        customer.name,
+        orderItems.map(item => ({
+          menuItemId: item.menuItemId,
+          menuItemName: item.menuItemName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+        })),
+        totalAmount,
+        createOrderDto.deliveryAddress,
+        createOrderDto.paymentMethod
+      ));
+
+      this.logger.log(`Order created successfully: ${savedOrder.orderNumber}`);
+
       return await this.findOne(savedOrder.id);
 
     } catch (error) {
@@ -139,6 +195,7 @@ export class OrderService {
     }
   }
 
+  // Keep all existing methods exactly the same...
   async findAll(queryDto: OrderQueryDto = {}): Promise<Order[]> {
     const where: any = {};
 
@@ -208,7 +265,6 @@ export class OrderService {
     });
   }
 
-
   async findDeliveryStaffOrders(deliveryStaffId: string): Promise<Order[]> {
     return await this.orderRepository.find({
       where: { deliveryStaffId },
@@ -226,11 +282,20 @@ export class OrderService {
     userId: string,
   ): Promise<Order> {
     const order = await this.findOne(orderId);
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId },
+      select: ['id', 'name', 'email', 'role'] // Add select for event data
+    });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    // Get customer info for event
+    const customer = await this.userRepository.findOne({
+      where: { id: order.customerId },
+      select: ['id', 'name', 'email']
+    });
 
     // Validate status transition
     this.validateStatusTransition(order.status, updateStatusDto.status);
@@ -238,12 +303,16 @@ export class OrderService {
     // Check permissions based on role and status
     this.validateUpdatePermissions(user, order, updateStatusDto.status);
 
+    const oldStatus = order.status; // Store old status for event
+    let deliveryStaff: User | null = null;
+
     // Update order status
     order.status = updateStatusDto.status;
 
     if (updateStatusDto.deliveryStaffId) {
-      const deliveryStaff = await this.userRepository.findOne({
+      deliveryStaff = await this.userRepository.findOne({
         where: { id: updateStatusDto.deliveryStaffId, role: UserRole.DELIVERY_STAFF },
+        select: ['id', 'name', 'email']
       });
 
       if (!deliveryStaff) {
@@ -256,6 +325,17 @@ export class OrderService {
     if (updateStatusDto.status === OrderStatus.DELIVERED) {
       order.actualDeliveryTime = new Date();
       order.paymentStatus = PaymentStatus.PAID; // Assume payment on delivery
+      
+      // === EVENT EMISSION ===
+      // Emit payment updated event
+      this.eventEmitter.emit('order.payment-updated', new OrderPaymentUpdatedEvent(
+        order.id,
+        order.orderNumber,
+        order.customerId,
+        PaymentStatus.PAID,
+        order.paymentMethod,
+        order.totalAmount
+      ));
     }
 
     const updatedOrder = await this.orderRepository.save(order);
@@ -263,17 +343,45 @@ export class OrderService {
     // Send status update notifications
     await this.sendStatusUpdateNotification(updatedOrder);
 
+    // === EVENT EMISSION ===
+    // Emit order status updated event
+    if (customer) {
+      this.eventEmitter.emit('order.status-updated', new OrderStatusUpdatedEvent(
+        order.id,
+        order.orderNumber,
+        customer.id,
+        customer.email,
+        customer.name,
+        oldStatus,
+        updateStatusDto.status,
+        deliveryStaff?.id,
+        deliveryStaff?.name,
+        order.estimatedDeliveryTime,
+        order.actualDeliveryTime
+      ));
+    }
+
+    this.logger.log(`Order status updated: ${order.orderNumber} from ${oldStatus} to ${updateStatusDto.status}`);
+
     return await this.findOne(updatedOrder.id);
   }
 
   async cancelOrderAndDelete(id: string, userId: string, reason?: string): Promise<{ message: string }> {
     // Find the order by ID including its items
     const order = await this.findOne(id);
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId },
+      select: ['id', 'name', 'email', 'role'] // Add select for event data
+    });
 
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    const customer = await this.userRepository.findOne({
+      where: { id: order.customerId },
+      select: ['id', 'name', 'email']
+    });
 
     // Only the customer who placed the order, or admins/staff can cancel/delete it
     if (order.customerId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
@@ -285,6 +393,17 @@ export class OrderService {
       throw new BadRequestException('Delivered orders cannot be cancelled or deleted.');
     }
 
+    // Prepare inventory restoration for event
+    const inventoryUpdates: Array<{
+      menuItemId: number;
+      quantity: number;
+      operation: 'increment' | 'decrement';
+    }> = order.items.map(item => ({
+      menuItemId: item.menuItemId,
+      quantity: item.quantity,
+      operation: 'increment' as const,
+    }));
+
     // Restore stock for each ordered menu item
     for (const item of order.items) {
       await this.menuRepository.increment(
@@ -292,6 +411,32 @@ export class OrderService {
         'stock',
         item.quantity,
       );
+    }
+
+    // === EVENT EMISSIONS ===
+    // Emit inventory update event for stock restoration
+    this.eventEmitter.emit('inventory.update-required', new InventoryUpdateRequiredEvent(
+      inventoryUpdates,
+      order.id,
+      order.orderNumber
+    ));
+
+    // Emit order cancelled event
+    if (customer) {
+      this.eventEmitter.emit('order.cancelled', new OrderCancelledEvent(
+        order.id,
+        order.orderNumber,
+        customer.id,
+        customer.email,
+        customer.name,
+        order.items.map(item => ({
+          menuItemId: item.menuItemId,
+          menuItemName: item.menuItemName,
+          quantity: item.quantity,
+        })),
+        reason ?? '',
+        userId
+      ));
     }
 
     // Delete all order items first to avoid foreign key constraint errors
@@ -303,9 +448,10 @@ export class OrderService {
     // Optionally send cancellation notification email to customer
     await this.sendCancellationNotification(order, reason);
 
+    this.logger.log(`Order cancelled and deleted: ${order.orderNumber}`);
+
     return { message: `Order ${order.orderNumber} and its details have been deleted successfully.` };
   }
-
 
   async getOrderStatistics(userId: string) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
@@ -373,19 +519,36 @@ export class OrderService {
   }
 
   // Method to update order payment status (called by payment service)
-  async updateOrderPaymentStatus(orderId: string, paymentStatus: PaymentStatus): Promise<Order> {
+  async updateOrderPaymentStatus(orderId: string, paymentStatus: PaymentStatus, transactionId?: string): Promise<Order> {
     const order = await this.findOne(orderId);
+    const oldPaymentStatus = order.paymentStatus;
     order.paymentStatus = paymentStatus;
-    return await this.orderRepository.save(order);
+    
+    const updatedOrder = await this.orderRepository.save(order);
+
+    // === EVENT EMISSION ===
+    // Emit payment updated event
+    this.eventEmitter.emit('order.payment-updated', new OrderPaymentUpdatedEvent(
+      order.id,
+      order.orderNumber,
+      order.customerId,
+      paymentStatus,
+      order.paymentMethod,
+      order.totalAmount,
+      transactionId
+    ));
+
+    this.logger.log(`Payment status updated for order ${order.orderNumber}: ${oldPaymentStatus} → ${paymentStatus}`);
+
+    return updatedOrder;
   }
 
+  // Keep all existing private methods exactly the same...
   private calculateDeliveryFee(subtotal: number): number {
     // Simple delivery fee calculation - you can customize this
     if (subtotal >= 50000) return 0; // Free delivery for orders above 50k UGX
     return 5000; // 5k UGX delivery fee
   }
-
-
 
   private calculateEstimatedDeliveryTime(): Date {
     const now = new Date();

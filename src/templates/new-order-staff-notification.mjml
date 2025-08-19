@@ -1,0 +1,33 @@
+<mjml>
+  <mj-head>
+    <mj-title>New Order Notification</mj-title>
+  </mj-head>
+  <mj-body background-color="#f5f5f5">
+    <mj-section background-color="#ffffff" padding="30px">
+      <mj-column>
+        <mj-text font-size="24px" color="#ff6b35" align="center" font-weight="bold">
+          🔔 New Order Received!
+        </mj-text>
+        <mj-text>
+          Hi {{staffName}},
+        </mj-text>
+        <mj-text>
+          A new order has been placed and needs your attention.
+        </mj-text>
+        
+        <mj-section background-color="#fff3e0" border-radius="10px" padding="20px">
+          <mj-column>
+            <mj-text font-weight="bold">Order: {{orderNumber}}</mj-text>
+            <mj-text>Customer: {{customerName}}</mj-text>
+            <mj-text>Items: {{itemsCount}} item(s)</mj-text>
+            <mj-text>Total: {{formattedAmount}}</mj-text>
+          </mj-column>
+        </mj-section>
+        
+        <mj-button background-color="#ff6b35" color="white" href="#" border-radius="25px">
+          View Order Details
+        </mj-button>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

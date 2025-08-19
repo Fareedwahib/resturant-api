@@ -199,4 +199,204 @@ export class MailService {
     const compiledPath = this.getCompiledTemplatePath(templateName);
     return fs.existsSync(compiledPath);
   }
+
+// Order confirmation email
+async sendOrderConfirmationEmail(
+  to: string, 
+  orderDetails: {
+    orderNumber: string;
+    customerName: string;
+    items: Array<{
+      menuItemName: string;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+    }>;
+    totalAmount: number;
+    deliveryAddress: string;
+    paymentMethod: string;
+  }
+) {
+  return this.sendTemplateEmail(
+    to, 
+    `Order Confirmation - ${orderDetails.orderNumber}`, 
+    'order-confirmation', 
+    {
+      ...orderDetails,
+      itemsHtml: orderDetails.items.map(item => 
+        `<tr>
+          <td style="padding: 10px; border-bottom: 1px solid #eee;">${item.menuItemName}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">UGX ${item.unitPrice.toLocaleString()}</td>
+          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">UGX ${item.totalPrice.toLocaleString()}</td>
+        </tr>`
+      ).join(''),
+      formattedTotalAmount: `UGX ${orderDetails.totalAmount.toLocaleString()}`,
+    }
+  );
+}
+
+// Order status update email
+async sendOrderStatusUpdateEmail(
+  to: string,
+  statusDetails: {
+    orderNumber: string;
+    customerName: string;
+    oldStatus: string;
+    newStatus: string;
+    deliveryStaffName?: string;
+    estimatedDeliveryTime?: Date;
+    actualDeliveryTime?: Date;
+  }
+) {
+  const statusMessages = {
+    pending: 'Your order has been received and is being processed.',
+    confirmed: 'Your order has been confirmed and will be prepared shortly.',
+    preparing: 'Your delicious meal is being prepared by our chefs.',
+    ready: 'Your order is ready! Our delivery team will pick it up soon.',
+    out_for_delivery: 'Your order is on its way to you!',
+    delivered: 'Your order has been delivered. Enjoy your meal!',
+    cancelled: 'Your order has been cancelled.',
+  };
+
+  return this.sendTemplateEmail(
+    to,
+    `Order Update - ${statusDetails.orderNumber}`,
+    'order-status-update',
+    {
+      ...statusDetails,
+      statusMessage: statusMessages[statusDetails.newStatus] || 'Your order status has been updated.',
+      isOutForDelivery: statusDetails.newStatus === 'out_for_delivery',
+      isDelivered: statusDetails.newStatus === 'delivered',
+      isCancelled: statusDetails.newStatus === 'cancelled',
+      hasDeliveryStaff: !!statusDetails.deliveryStaffName,
+      estimatedDeliveryTimeFormatted: statusDetails.estimatedDeliveryTime?.toLocaleString(),
+      actualDeliveryTimeFormatted: statusDetails.actualDeliveryTime?.toLocaleString(),
+    }
+  );
+}
+
+// Order cancellation email
+async sendOrderCancellationEmail(
+  to: string,
+  cancellationDetails: {
+    orderNumber: string;
+    customerName: string;
+    reason?: string;
+  }
+) {
+  return this.sendTemplateEmail(
+    to,
+    `Order Cancelled - ${cancellationDetails.orderNumber}`,
+    'order-cancellation',
+    {
+      ...cancellationDetails,
+      hasReason: !!cancellationDetails.reason,
+    }
+  );
+}
+
+// Payment confirmation email
+async sendPaymentConfirmationEmail(
+  customerEmail: string,
+  paymentDetails: {
+    orderNumber: string;
+    customerName: string;
+    totalAmount: number;
+    paymentMethod: string;
+    transactionId?: string;
+  }
+) {
+  return this.sendTemplateEmail(
+    customerEmail,
+    `Payment Confirmed - ${paymentDetails.orderNumber}`,
+    'payment-confirmation',
+    {
+      ...paymentDetails,
+      formattedAmount: `UGX ${paymentDetails.totalAmount.toLocaleString()}`,
+      hasTransactionId: !!paymentDetails.transactionId,
+    }
+  );
+}
+
+// Payment failed email
+async sendPaymentFailedEmail(
+  customerEmail: string,
+  paymentDetails: {
+    orderNumber: string;
+    customerName: string;
+    totalAmount: number;
+  }
+) {
+  return this.sendTemplateEmail(
+    customerEmail,
+    `Payment Failed - ${paymentDetails.orderNumber}`,
+    'payment-failed',
+    {
+      ...paymentDetails,
+      formattedAmount: `UGX ${paymentDetails.totalAmount.toLocaleString()}`,
+    }
+  );
+}
+
+// New order notification to staff
+async sendNewOrderNotificationToStaff(
+  staffEmail: string,
+  orderDetails: {
+    staffName: string;
+    orderNumber: string;
+    customerName: string;
+    totalAmount: number;
+    itemsCount: number;
+  }
+) {
+  return this.sendTemplateEmail(
+    staffEmail,
+    `New Order Received - ${orderDetails.orderNumber}`,
+    'new-order-staff-notification',
+    {
+      ...orderDetails,
+      formattedAmount: `UGX ${orderDetails.totalAmount.toLocaleString()}`,
+    }
+  );
+}
+
+// Delivery assignment notification
+async sendDeliveryAssignmentNotification(
+  deliveryStaffEmail: string,
+  assignmentDetails: {
+    deliveryStaffName: string;
+    orderNumber: string;
+    customerName: string;
+    deliveryAddress: string;
+    estimatedDeliveryTime?: Date;
+  }
+) {
+  return this.sendTemplateEmail(
+    deliveryStaffEmail,
+    `Delivery Assignment - ${assignmentDetails.orderNumber}`,
+    'delivery-assignment',
+    {
+      ...assignmentDetails,
+      estimatedTimeFormatted: assignmentDetails.estimatedDeliveryTime?.toLocaleString(),
+    }
+  );
+}
+
+// Low stock alert to admin
+async sendLowStockAlert(
+  adminEmail: string,
+  stockDetails: {
+    menuItemName: string;
+    currentStock: number;
+    menuItemId: number;
+  }
+) {
+  return this.sendTemplateEmail(
+    adminEmail,
+    `Low Stock Alert - ${stockDetails.menuItemName}`,
+    'low-stock-alert',
+    stockDetails
+  );
+}
 }

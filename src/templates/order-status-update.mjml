@@ -1,0 +1,55 @@
+<mjml>
+  <mj-head>
+    <mj-title>Order Status Update</mj-title>
+  </mj-head>
+  <mj-body background-color="#f5f5f5">
+    <mj-section background-color="#ffffff" padding="30px">
+      <mj-column>
+        <mj-text font-size="24px" color="#17a2b8" align="center" font-weight="bold">
+          Order Status Update
+        </mj-text>
+        <mj-text>
+          Hi {{customerName}},
+        </mj-text>
+        <mj-text>
+          Your order <strong>{{orderNumber}}</strong> status has been updated:
+        </mj-text>
+        
+        <mj-section background-color="#e7f3ff" border-radius="10px" padding="20px">
+          <mj-column>
+            <mj-text align="center" font-size="18px" color="#0056b3" font-weight="bold">
+              {{oldStatus}} → {{newStatus}}
+            </mj-text>
+            <mj-text align="center" color="#666666">
+              {{statusMessage}}
+            </mj-text>
+          </mj-column>
+        </mj-section>
+        
+        {{#if hasDeliveryStaff}}
+        <mj-text font-weight="bold">Delivery Staff:</mj-text>
+        <mj-text color="#666666">{{deliveryStaffName}}</mj-text>
+        {{/if}}
+        
+        {{#if isOutForDelivery}}
+        <mj-text font-weight="bold" color="#ff6b35">
+          📦 Your order is on the way!
+        </mj-text>
+        {{#if estimatedDeliveryTimeFormatted}}
+        <mj-text>Estimated delivery: {{estimatedDeliveryTimeFormatted}}</mj-text>
+        {{/if}}
+        {{/if}}
+        
+        {{#if isDelivered}}
+        <mj-text font-weight="bold" color="#28a745">
+          ✅ Order delivered successfully!
+        </mj-text>
+        {{#if actualDeliveryTimeFormatted}}
+        <mj-text>Delivered at: {{actualDeliveryTimeFormatted}}</mj-text>
+        {{/if}}
+        <mj-text>We hope you enjoyed your meal! 😊</mj-text>
+        {{/if}}
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

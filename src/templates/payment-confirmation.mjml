@@ -1,0 +1,47 @@
+<mjml>
+    <mj-head>
+        <mj-title>Payment Confirmation</mj-title>
+        <mj-preview>Your payment has been received</mj-preview>
+        <mj-style>
+            .details-box {
+                border-radius: 10px;
+                background-color: #e8f5e8;
+                padding: 20px;
+            }
+        </mj-style>
+    </mj-head>
+    <mj-body background-color="#f5f5f5">
+        <mj-section background-color="#ffffff" padding="30px">
+            <mj-column>
+                <mj-text font-size="24px" color="#28a745" align="center" font-weight="bold">
+                    Payment Confirmed ✅
+                </mj-text>
+                <mj-text font-size="16px">
+                    Hi {{customerName}},
+                </mj-text>
+                        <mj-text font-size="16px">
+                            We've successfully received your payment for order <strong>{{orderNumber}}</strong>.
+                        </mj-text>
+                    </mj-column>
+                </mj-section>
+                <mj-wrapper css-class="details-box">
+                    <mj-section background-color="#ffffff" padding="0 30px 0 30px">
+                        <mj-column>
+                            <mj-text font-weight="bold">Payment Details:</mj-text>
+                            <mj-text>Amount: <strong>{{formattedAmount}}</strong></mj-text>
+                            <mj-text>Method: {{paymentMethod}}</mj-text>
+                            {{#if hasTransactionId}}
+                            <mj-text>Transaction ID: {{transactionId}}</mj-text>
+                            {{/if}}
+                        </mj-column>
+                    </mj-section>
+                </mj-wrapper>
+                <mj-section background-color="#ffffff" padding="0 30px 30px 30px">
+                    <mj-column>
+                        <mj-text font-size="16px">
+                            Your order is now being processed and will be delivered soon!
+                        </mj-text>
+            </mj-column>
+        </mj-section>
+    </mj-body>
+</mjml>

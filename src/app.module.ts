@@ -1,3 +1,4 @@
+// src/app.module.ts (Updated with new listeners)
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -8,6 +9,9 @@ import { AuthModule } from './auth/auth.module';
 import { User } from './auth/entities/user.entity';
 import { UserListener } from './listeners/user.listener';
 import { AuditListener } from './listeners/audit.listener';
+import { OrderListener } from './listeners/order.listener'; // New
+import { InventoryListener } from './listeners/inventory.listener'; // New
+import { NotificationListener } from './listeners/notification.listener'; // New
 import { RefreshToken } from './auth/entities/refresh-token.entity';
 import { ResetToken } from './auth/entities/reset-token.entity';
 import { DeliveryStaff } from './auth/entities/delivery-staff.entity';
@@ -105,10 +109,15 @@ import { MailService } from './services/mail.service';
  ],
 
   controllers: [AppController],
-  providers: [AppService,
+  providers: [
+    AppService,
     MailService,
+    // Event Listeners
     UserListener,
     AuditListener,
+    OrderListener, 
+    InventoryListener,  
+    NotificationListener, 
   ],
 })
 
