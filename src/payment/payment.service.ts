@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { Payment, PaymentStatus, PaymentMethod, MobileMoneyProvider, PaymentWebhook } from './entities/payment.entity';
 import { Order, OrderStatus } from '../order/entities/order.entity';
@@ -18,6 +19,13 @@ import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { PaymentQueryDto } from './dto/payment-query.dto';
 import { MobileMoneyPaymentDto } from './dto/mobile-money-payment.dto';
 import { MailService } from '../services/mail.service';
+
+// Import your event classes
+import { PaymentCreatedEvent } from '../events/payment-created.event';
+import { PaymentCompletedEvent } from '../events/payment-completed.event';
+import { PaymentFailedEvent } from '../events/payment-failed.event';
+import { PaymentCancelledEvent } from '../events/payment-cancelled.event';
+import { PaymentRefundedEvent } from '../events/payment-refunded.event';
 
 @Injectable()
 export class PaymentService {
@@ -34,6 +42,7 @@ export class PaymentService {
     private userRepository: Repository<User>,
     private configService: ConfigService,
     private mailService: MailService,
+    private eventEmitter: EventEmitter2, // Add EventEmitter2
   ) {}
 
   async createPayment(createPaymentDto: CreatePaymentDto, userId: string): Promise<Payment> {
@@ -47,10 +56,19 @@ export class PaymentService {
       throw new NotFoundException('Order not found');
     }
 
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId },
+      select: ['id', 'name', 'email', 'role'] // Add select for event data
+    });
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    // Get customer info for event
+    const customer = await this.userRepository.findOne({
+      where: { id: order.customerId },
+      select: ['id', 'name', 'email']
+    });
 
     // Check permissions
     if (order.customerId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
@@ -83,12 +101,6 @@ export class PaymentService {
     // Convert both amounts to numbers and round to 2 decimal places for comparison
     const paymentAmount = Number(Number(createPaymentDto.amount).toFixed(2));
     const orderTotal = Number(Number(order.totalAmount).toFixed(2));
-    
-    // this.logger.log(`Payment amount (from DTO): ${paymentAmount}`);
-    // this.logger.log(`Order total amount (from DB): ${orderTotal}`);
-    // this.logger.log(`Amount types - Payment: ${typeof paymentAmount}, Order: ${typeof orderTotal}`);
-    // this.logger.log(`Amounts equal: ${paymentAmount === orderTotal}`);
-    // this.logger.log(`Difference: ${Math.abs(paymentAmount - orderTotal)}`);
 
     // Use a tolerance for floating point comparison (1 cent tolerance)
     const tolerance = 0.01;
@@ -109,6 +121,25 @@ export class PaymentService {
     });
 
     const savedPayment = await this.paymentRepository.save(payment);
+
+    // === EVENT EMISSION ===
+    // Emit payment created event
+    if (customer) {
+      this.eventEmitter.emit('payment.created', new PaymentCreatedEvent(
+        savedPayment.id,
+        savedPayment.paymentReference,
+        order.id,
+        order.orderNumber,
+        customer.id,
+        customer.email,
+        customer.name,
+        savedPayment.amount,
+        savedPayment.paymentMethod,
+        savedPayment.status
+      ));
+    }
+
+    this.logger.log(`Payment created: ${savedPayment.paymentReference} for order ${order.orderNumber}`);
 
     // Process payment based on method
     switch (createPaymentDto.paymentMethod) {
@@ -140,10 +171,16 @@ export class PaymentService {
 
         // Update order payment status
         await this.updateOrderPaymentStatus(payment.orderId, PaymentStatus.COMPLETED);
+        
+        // Emit payment completed event
+        await this.emitPaymentCompletedEvent(payment);
       } else {
         payment.status = PaymentStatus.FAILED;
         payment.failedAt = new Date();
         payment.gatewayResponse = JSON.stringify(result);
+        
+        // Emit payment failed event
+        await this.emitPaymentFailedEvent(payment, result.error);
       }
 
       const updatedPayment = await this.paymentRepository.save(payment);
@@ -157,6 +194,10 @@ export class PaymentService {
       payment.status = PaymentStatus.FAILED;
       payment.failedAt = new Date();
       payment.gatewayResponse = JSON.stringify({ error: error.message });
+      
+      // Emit payment failed event
+      await this.emitPaymentFailedEvent(payment, error.message);
+      
       return await this.paymentRepository.save(payment);
     }
   }
@@ -177,10 +218,16 @@ export class PaymentService {
         payment.gatewayResponse = JSON.stringify(result);
 
         await this.updateOrderPaymentStatus(payment.orderId, PaymentStatus.COMPLETED);
+        
+        // Emit payment completed event
+        await this.emitPaymentCompletedEvent(payment);
       } else {
         payment.status = PaymentStatus.FAILED;
         payment.failedAt = new Date();
         payment.gatewayResponse = JSON.stringify(result);
+        
+        // Emit payment failed event
+        await this.emitPaymentFailedEvent(payment, result.error);
       }
 
       const updatedPayment = await this.paymentRepository.save(payment);
@@ -191,6 +238,10 @@ export class PaymentService {
       this.logger.error('Card payment processing failed:', error);
       payment.status = PaymentStatus.FAILED;
       payment.failedAt = new Date();
+      
+      // Emit payment failed event
+      await this.emitPaymentFailedEvent(payment, error.message);
+      
       return await this.paymentRepository.save(payment);
     }
   }
@@ -203,7 +254,10 @@ export class PaymentService {
   }
 
   async confirmCashPayment(paymentId: string, staffId: string): Promise<Payment> {
-    const staff = await this.userRepository.findOne({ where: { id: staffId } });
+    const staff = await this.userRepository.findOne({ 
+      where: { id: staffId },
+      select: ['id', 'name', 'email', 'role']
+    });
     if (!staff || ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(staff.role)) {
       throw new ForbiddenException('Only staff can confirm cash payments');
     }
@@ -227,9 +281,13 @@ export class PaymentService {
 
     await this.updateOrderPaymentStatus(payment.orderId, PaymentStatus.COMPLETED);
     
+    // Emit payment completed event
+    await this.emitPaymentCompletedEvent(payment, staffId);
+    
     return await this.paymentRepository.save(payment);
   }
 
+  // Keep all your existing methods (findAll, findOne, etc.) unchanged...
   async findAll(queryDto: PaymentQueryDto = {}): Promise<Payment[]> {
     const where: any = {};
 
@@ -296,7 +354,10 @@ export class PaymentService {
   }
 
   async refundPayment(paymentId: string, refundDto: RefundPaymentDto, adminId: string): Promise<Payment> {
-    const admin = await this.userRepository.findOne({ where: { id: adminId } });
+    const admin = await this.userRepository.findOne({ 
+      where: { id: adminId },
+      select: ['id', 'name', 'email', 'role']
+    });
     if (!admin || admin.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Only admins can process refunds');
     }
@@ -323,6 +384,7 @@ export class PaymentService {
     const refundResult = await this.processRefund(payment, refundDto.amount);
 
     if (refundResult.success) {
+      const oldStatus = payment.status;
       payment.refundedAmount = totalRefunded;
       payment.refundedAt = new Date();
       
@@ -344,6 +406,9 @@ export class PaymentService {
           { status: OrderStatus.CANCELLED }
         );
       }
+
+      // Emit payment refunded event
+      await this.emitPaymentRefundedEvent(payment, refundDto.amount, refundDto.reason ?? 'No reason provided', adminId);
     }
 
     return await this.paymentRepository.save(payment);
@@ -468,6 +533,10 @@ export class PaymentService {
 
     await this.paymentRepository.save(payment);
     await this.updateOrderPaymentStatus(payment.orderId, PaymentStatus.COMPLETED);
+    
+    // Emit payment completed event
+    await this.emitPaymentCompletedEvent(payment);
+    
     await this.sendPaymentNotification(payment);
   }
 
@@ -477,6 +546,10 @@ export class PaymentService {
     payment.gatewayResponse = JSON.stringify(payload);
 
     await this.paymentRepository.save(payment);
+    
+    // Emit payment failed event
+    await this.emitPaymentFailedEvent(payment, payload.error || 'Payment failed via webhook');
+    
     await this.sendPaymentNotification(payment);
   }
 
@@ -490,6 +563,240 @@ export class PaymentService {
     }
   }
 
+  async getPaymentByOrder(orderId: string, userId: string): Promise<Payment[]> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const order = await this.orderRepository.findOne({ where: { id: orderId } });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Check permissions
+    if (order.customerId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
+      throw new ForbiddenException('You can only view payments for your own orders');
+    }
+
+    return await this.paymentRepository.find({
+      where: { orderId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getOrderPaymentStatus(orderId: string, userId: string): Promise<{
+    hasActivePayment: boolean;
+    paymentStatus?: PaymentStatus;
+    paymentId?: string;
+    canCreateNewPayment: boolean;
+  }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const order = await this.orderRepository.findOne({ where: { id: orderId } });
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    // Check permissions
+    if (order.customerId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
+      throw new ForbiddenException('You can only check payment status for your own orders');
+    }
+
+    const activePayment = await this.paymentRepository.findOne({
+      where: { 
+        orderId, 
+        status: In([PaymentStatus.COMPLETED, PaymentStatus.PENDING, PaymentStatus.PROCESSING])
+      },
+      order: { createdAt: 'DESC' }
+    });
+
+    if (activePayment) {
+      return {
+        hasActivePayment: true,
+        paymentStatus: activePayment.status,
+        paymentId: activePayment.id,
+        canCreateNewPayment: false
+      };
+    }
+
+    return {
+      hasActivePayment: false,
+      canCreateNewPayment: true
+    };
+  }
+
+  async cancelPendingPayment(paymentId: string, userId: string, reason?: string): Promise<Payment> {
+    const payment = await this.paymentRepository.findOne({
+      where: { id: paymentId },
+      relations: ['order'],
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId },
+      select: ['id', 'name', 'email', 'role']
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Check permissions
+    if (payment.userId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
+      throw new ForbiddenException('You can only cancel your own payments');
+    }
+
+    // Only allow cancellation of pending or processing payments
+    if (![PaymentStatus.PENDING, PaymentStatus.PROCESSING].includes(payment.status)) {
+      throw new BadRequestException(`Cannot cancel payment with status: ${payment.status}`);
+    }
+
+    payment.status = PaymentStatus.CANCELLED;
+    payment.gatewayResponse = JSON.stringify({
+      ...JSON.parse(payment.gatewayResponse || '{}'),
+      cancellation: {
+        reason: reason || 'Cancelled by user',
+        cancelledBy: userId,
+        cancelledAt: new Date(),
+      },
+    });
+
+    const updatedPayment = await this.paymentRepository.save(payment);
+    
+    // Emit payment cancelled event
+    await this.emitPaymentCancelledEvent(updatedPayment, reason ?? 'Cancelled by user', userId);
+    
+    this.logger.log(`Payment ${payment.paymentReference} cancelled by user ${userId}`);
+    
+    return updatedPayment;
+  }
+
+  // === EVENT EMISSION METHODS ===
+  private async emitPaymentCompletedEvent(payment: Payment, confirmedBy?: string): Promise<void> {
+    try {
+      const order = await this.orderRepository.findOne({ where: { id: payment.orderId } });
+      const customer = await this.userRepository.findOne({
+        where: { id: payment.userId },
+        select: ['id', 'name', 'email']
+      });
+
+      if (customer && order) {
+        this.eventEmitter.emit('payment.completed', new PaymentCompletedEvent(
+          payment.id,
+          payment.paymentReference,
+          order.id,
+          order.orderNumber,
+          customer.id,
+          customer.email,
+          customer.name,
+          payment.amount,
+          payment.paymentMethod,
+          payment.gatewayTransactionId,
+          confirmedBy
+        ));
+      }
+    } catch (error) {
+      this.logger.error('Failed to emit payment completed event:', error);
+    }
+  }
+
+  private async emitPaymentFailedEvent(payment: Payment, errorMessage: string): Promise<void> {
+    try {
+      const order = await this.orderRepository.findOne({ where: { id: payment.orderId } });
+      const customer = await this.userRepository.findOne({
+        where: { id: payment.userId },
+        select: ['id', 'name', 'email']
+      });
+
+      if (customer && order) {
+        this.eventEmitter.emit('payment.failed', new PaymentFailedEvent(
+          payment.id,
+          payment.paymentReference,
+          order.id,
+          order.orderNumber,
+          customer.id,
+          customer.email,
+          customer.name,
+          payment.amount,
+          payment.paymentMethod,
+          errorMessage
+        ));
+      }
+    } catch (error) {
+      this.logger.error('Failed to emit payment failed event:', error);
+    }
+  }
+
+  private async emitPaymentCancelledEvent(payment: Payment, reason: string, cancelledBy: string): Promise<void> {
+    try {
+      const order = await this.orderRepository.findOne({ where: { id: payment.orderId } });
+      const customer = await this.userRepository.findOne({
+        where: { id: payment.userId },
+        select: ['id', 'name', 'email']
+      });
+
+      if (customer && order) {
+        this.eventEmitter.emit('payment.cancelled', new PaymentCancelledEvent(
+          payment.id,
+          payment.paymentReference,
+          order.id,
+          order.orderNumber,
+          customer.id,
+          customer.email,
+          customer.name,
+          payment.amount,
+          payment.paymentMethod,
+          reason,
+          cancelledBy
+        ));
+      }
+    } catch (error) {
+      this.logger.error('Failed to emit payment cancelled event:', error);
+    }
+  }
+
+  private async emitPaymentRefundedEvent(
+    payment: Payment, 
+    refundAmount: number, 
+    reason: string, 
+    adminId: string
+  ): Promise<void> {
+    try {
+      const order = await this.orderRepository.findOne({ where: { id: payment.orderId } });
+      const customer = await this.userRepository.findOne({
+        where: { id: payment.userId },
+        select: ['id', 'name', 'email']
+      });
+
+      if (customer && order) {
+        this.eventEmitter.emit('payment.refunded', new PaymentRefundedEvent(
+          payment.id,
+          payment.paymentReference,
+          order.id,
+          order.orderNumber,
+          customer.id,
+          customer.email,
+          customer.name,
+          payment.amount,
+          refundAmount,
+          payment.refundedAmount,
+          payment.status === PaymentStatus.REFUNDED,
+          reason,
+          adminId
+        ));
+      }
+    } catch (error) {
+      this.logger.error('Failed to emit payment refunded event:', error);
+    }
+  }
+
+  // Keep all your existing private methods unchanged...
   private async generatePaymentReference(): Promise<string> {
     const prefix = 'PAY';
     const timestamp = Date.now().toString().slice(-8);
@@ -618,113 +925,5 @@ export class PaymentService {
     } catch (error) {
       this.logger.error('Failed to send payment notification:', error);
     }
-  }
-
-  async getPaymentByOrder(orderId: string, userId: string): Promise<Payment[]> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const order = await this.orderRepository.findOne({ where: { id: orderId } });
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-
-    // Check permissions
-    if (order.customerId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
-      throw new ForbiddenException('You can only view payments for your own orders');
-    }
-
-    return await this.paymentRepository.find({
-      where: { orderId },
-      order: { createdAt: 'DESC' },
-    });
-  }
-
-  async getOrderPaymentStatus(orderId: string, userId: string): Promise<{
-    hasActivePayment: boolean;
-    paymentStatus?: PaymentStatus;
-    paymentId?: string;
-    canCreateNewPayment: boolean;
-  }> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    const order = await this.orderRepository.findOne({ where: { id: orderId } });
-    if (!order) {
-      throw new NotFoundException('Order not found');
-    }
-
-    // Check permissions
-    if (order.customerId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
-      throw new ForbiddenException('You can only check payment status for your own orders');
-    }
-
-    const activePayment = await this.paymentRepository.findOne({
-      where: { 
-        orderId, 
-        status: In([PaymentStatus.COMPLETED, PaymentStatus.PENDING, PaymentStatus.PROCESSING])
-      },
-      order: { createdAt: 'DESC' }
-    });
-
-    if (activePayment) {
-      return {
-        hasActivePayment: true,
-        paymentStatus: activePayment.status,
-        paymentId: activePayment.id,
-        canCreateNewPayment: false
-      };
-    }
-
-    return {
-      hasActivePayment: false,
-      canCreateNewPayment: true
-    };
-  }
-
-  async cancelPendingPayment(paymentId: string, userId: string, reason?: string): Promise<Payment> {
-    const payment = await this.paymentRepository.findOne({
-      where: { id: paymentId },
-      relations: ['order'],
-    });
-
-    if (!payment) {
-      throw new NotFoundException('Payment not found');
-    }
-
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Check permissions
-    if (payment.userId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
-      throw new ForbiddenException('You can only cancel your own payments');
-    }
-
-    // Only allow cancellation of pending or processing payments
-    if (![PaymentStatus.PENDING, PaymentStatus.PROCESSING].includes(payment.status)) {
-      throw new BadRequestException(`Cannot cancel payment with status: ${payment.status}`);
-    }
-
-    payment.status = PaymentStatus.CANCELLED;
-    payment.gatewayResponse = JSON.stringify({
-      ...JSON.parse(payment.gatewayResponse || '{}'),
-      cancellation: {
-        reason: reason || 'Cancelled by user',
-        cancelledBy: userId,
-        cancelledAt: new Date(),
-      },
-    });
-
-    const updatedPayment = await this.paymentRepository.save(payment);
-    
-    this.logger.log(`Payment ${payment.paymentReference} cancelled by user ${userId}`);
-    
-    return updatedPayment;
   }
 }

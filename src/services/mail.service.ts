@@ -399,4 +399,74 @@ async sendLowStockAlert(
     stockDetails
   );
 }
+// Payment cancellation email
+async sendPaymentCancelledEmail(
+  customerEmail: string,
+  cancellationDetails: {
+    orderNumber: string;
+    customerName: string;
+    paymentReference: string;
+    amount: number;
+    reason: string;
+  }
+) {
+  return this.sendTemplateEmail(
+    customerEmail,
+    `Payment Cancelled - ${cancellationDetails.orderNumber}`,
+    'payment-cancelled',
+    {
+      ...cancellationDetails,
+      formattedAmount: `UGX ${cancellationDetails.amount.toLocaleString()}`,
+    }
+  );
+}
+
+// Payment refund email
+async sendPaymentRefundEmail(
+  customerEmail: string,
+  refundDetails: {
+    orderNumber: string;
+    customerName: string;
+    paymentReference: string;
+    originalAmount: number;
+    refundAmount: number;
+    totalRefunded: number;
+    isFullyRefunded: boolean;
+    reason: string;
+  }
+) {
+  return this.sendTemplateEmail(
+    customerEmail,
+    `Payment Refund - ${refundDetails.orderNumber}`,
+    'payment-refund',
+    {
+      ...refundDetails,
+      formattedOriginalAmount: `UGX ${refundDetails.originalAmount.toLocaleString()}`,
+      formattedRefundAmount: `UGX ${refundDetails.refundAmount.toLocaleString()}`,
+      formattedTotalRefunded: `UGX ${refundDetails.totalRefunded.toLocaleString()}`,
+    }
+  );
+}
+
+// Payment initiated email (optional)
+async sendPaymentInitiatedEmail(
+  customerEmail: string,
+  paymentDetails: {
+    customerName: string;
+    orderNumber: string;
+    paymentReference: string;
+    amount: number;
+    paymentMethod: string;
+  }
+) {
+  return this.sendTemplateEmail(
+    customerEmail,
+    `Payment Initiated - ${paymentDetails.orderNumber}`,
+    'payment-initiated',
+    {
+      ...paymentDetails,
+      formattedAmount: `UGX ${paymentDetails.amount.toLocaleString()}`,
+    }
+  );
+}
 }

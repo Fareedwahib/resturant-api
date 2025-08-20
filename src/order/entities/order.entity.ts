@@ -18,6 +18,7 @@ export enum OrderStatus {
   OUT_FOR_DELIVERY = 'out_for_delivery',
   DELIVERED = 'delivered',
   CANCELLED = 'cancelled',
+  PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED",
 }
 
 export enum PaymentStatus {
@@ -25,6 +26,7 @@ export enum PaymentStatus {
   PAID = 'paid',
   FAILED = 'failed',
   REFUNDED = 'refunded',
+  PARTIALLY_REFUNDED = 'partially_refunded',
 }
 
 export enum PaymentMethod {

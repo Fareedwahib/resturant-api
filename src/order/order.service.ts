@@ -590,7 +590,8 @@ export class OrderService {
       [OrderStatus.READY]: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.CANCELLED],
       [OrderStatus.OUT_FOR_DELIVERY]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
       [OrderStatus.DELIVERED]: [], // Final state
-      [OrderStatus.CANCELLED]: [], // Final state
+      [OrderStatus.CANCELLED]: [],
+      [OrderStatus.PARTIALLY_REFUNDED]: []
     };
 
     if (!validTransitions[currentStatus].includes(newStatus)) {

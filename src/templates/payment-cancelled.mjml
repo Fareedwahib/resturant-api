@@ -1,0 +1,36 @@
+<mjml>
+  <mj-head>
+    <mj-title>Payment Cancelled</mj-title>
+  </mj-head>
+  <mj-body background-color="#f5f5f5">
+    <mj-section background-color="#ffffff" padding="30px">
+      <mj-column>
+        <mj-text font-size="24px" color="#dc3545" align="center" font-weight="bold">
+          Payment Cancelled
+        </mj-text>
+        <mj-text>
+          Hi {{customerName}},
+        </mj-text>
+        <mj-text>
+          Your payment for order <strong>{{orderNumber}}</strong> has been cancelled.
+        </mj-text>
+        
+        <mj-section background-color="#fff3cd" border-radius="10px" padding="20px">
+          <mj-column>
+            <mj-text font-weight="bold">Payment Reference: {{paymentReference}}</mj-text>
+            <mj-text>Amount: {{formattedAmount}}</mj-text>
+            <mj-text>Reason: {{reason}}</mj-text>
+          </mj-column>
+        </mj-section>
+        
+        <mj-text>
+          If you wish to complete your order, please try making the payment again.
+        </mj-text>
+        
+        <mj-button background-color="#007bff" color="white" href="#" border-radius="25px">
+          Try Payment Again
+        </mj-button>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
