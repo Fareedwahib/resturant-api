@@ -24,7 +24,7 @@
           🎉 Congratulations! Your account has been approved. You can now access all features.
         </mj-text>
         <mj-button
-          background-color="#28a745"
+          background-color="#ff9800"
           color="#ffffff"
           href="https://yourapp.com/login"
           font-size="16px"

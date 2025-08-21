@@ -22,7 +22,6 @@ export class NotificationListener {
     this.logger.log(`Notifying staff of new order: ${event.orderNumber}`);
     
     try {
-      // Get all admin and staff users
       const staffUsers = await this.userRepository.find({
         where: [
           { role: UserRole.ADMIN },
@@ -31,7 +30,6 @@ export class NotificationListener {
         select: ['id', 'email', 'name']
       });
 
-      // Send notification to all staff
       for (const staff of staffUsers) {
         await this.mailService.sendNewOrderNotificationToStaff(
           staff.email,
@@ -71,7 +69,7 @@ export class NotificationListener {
               deliveryStaffName: deliveryStaff.name,
               orderNumber: event.orderNumber,
               customerName: event.customerName,
-              deliveryAddress: 'Address from order', // You might need to pass this in the event
+              deliveryAddress: 'Address from order', 
               estimatedDeliveryTime: event.estimatedDeliveryTime,
             }
           );

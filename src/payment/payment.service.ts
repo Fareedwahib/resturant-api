@@ -19,8 +19,6 @@ import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { PaymentQueryDto } from './dto/payment-query.dto';
 import { MobileMoneyPaymentDto } from './dto/mobile-money-payment.dto';
 import { MailService } from '../services/mail.service';
-
-// Import your event classes
 import { PaymentCreatedEvent } from '../events/payment-created.event';
 import { PaymentCompletedEvent } from '../events/payment-completed.event';
 import { PaymentFailedEvent } from '../events/payment-failed.event';
@@ -42,11 +40,11 @@ export class PaymentService {
     private userRepository: Repository<User>,
     private configService: ConfigService,
     private mailService: MailService,
-    private eventEmitter: EventEmitter2, // Add EventEmitter2
+    private eventEmitter: EventEmitter2, 
   ) {}
 
   async createPayment(createPaymentDto: CreatePaymentDto, userId: string): Promise<Payment> {
-    // Validate order exists and belongs to user or user has permission
+    // Validating order exists and belongs to user or user has permission
     const order = await this.orderRepository.findOne({
       where: { id: createPaymentDto.orderId },
       relations: ['customer'],
@@ -122,8 +120,7 @@ export class PaymentService {
 
     const savedPayment = await this.paymentRepository.save(payment);
 
-    // === EVENT EMISSION ===
-    // Emit payment created event
+    // Emitting payment created event
     if (customer) {
       this.eventEmitter.emit('payment.created', new PaymentCreatedEvent(
         savedPayment.id,
@@ -141,7 +138,7 @@ export class PaymentService {
 
     this.logger.log(`Payment created: ${savedPayment.paymentReference} for order ${order.orderNumber}`);
 
-    // Process payment based on method
+    // Processing payment based on method
     switch (createPaymentDto.paymentMethod) {
       case PaymentMethod.MOBILE_MONEY:
         return await this.processMobileMoneyPayment(savedPayment);
@@ -169,7 +166,7 @@ export class PaymentService {
         payment.gatewayTransactionId = result.transactionId;
         payment.gatewayResponse = JSON.stringify(result);
 
-        // Update order payment status
+        // Updating order payment status
         await this.updateOrderPaymentStatus(payment.orderId, PaymentStatus.COMPLETED);
         
         // Emit payment completed event
@@ -677,7 +674,6 @@ export class PaymentService {
     return updatedPayment;
   }
 
-  // === EVENT EMISSION METHODS ===
   private async emitPaymentCompletedEvent(payment: Payment, confirmedBy?: string): Promise<void> {
     try {
       const order = await this.orderRepository.findOne({ where: { id: payment.orderId } });

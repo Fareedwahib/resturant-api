@@ -18,7 +18,6 @@ export class MenueService {
   async create(createMenueDto: CreateMenueDto, userId: string): Promise<Menue> {
     const { categoryId, name, description, price, stock } = createMenueDto;
 
-    // Verify category exists
     const category = await this.categoryRepository.findOne({
       where: { id: categoryId }
     });
@@ -27,7 +26,6 @@ export class MenueService {
       throw new BadRequestException(`Category with ID ${categoryId} not found`);
     }
 
-    // Check if product with same name already exists
     const existingProduct = await this.productRepository.findOne({
       where: { name }
     });
@@ -53,7 +51,6 @@ export class MenueService {
       order: { createdAt: 'DESC' }
     });
 
-    // Remove sensitive user data from all menues
     return menues.map(menue => {
       if (menue.user) {
         const { password, ...safeUser } = menue.user;
@@ -89,7 +86,6 @@ export class MenueService {
       throw new NotFoundException(`Menue with ID ${id} not found`);
     }
 
-    // Remove sensitive user data
     if (menue.user) {
       const { password, ...safeUser } = menue.user;
       menue.user = safeUser as any;
@@ -101,12 +97,10 @@ export class MenueService {
   async update(id: number, updateMenueDto: UpdateMenueDto, userId: string): Promise<Menue> {
     const menue = await this.findOne(id);
 
-    // Check if user owns this menue or is admin
     if (menue.userId !== userId) {
       throw new ForbiddenException('You can only update your own menues');
     }
 
-    // If updating category, verify it exists
     if (updateMenueDto.categoryId) {
       const category = await this.categoryRepository.findOne({
         where: { id: updateMenueDto.categoryId }
@@ -117,7 +111,6 @@ export class MenueService {
       }
     }
 
-    // If updating name, check for duplicates
     if (updateMenueDto.name && updateMenueDto.name !== menue.name) {
       const existingMenue = await this.productRepository.findOne({
         where: { name: updateMenueDto.name }
@@ -135,7 +128,6 @@ export class MenueService {
   async remove(id: number, userId: string): Promise<{ message: string }> {
     const menue = await this.findOne(id);
 
-    // Check if user owns this menue
     if (menue.userId !== userId) {
       throw new ForbiddenException('You can only delete your own menues');
     }

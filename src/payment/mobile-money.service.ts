@@ -213,7 +213,6 @@ export class MobileMoneyService {
   }
 
   formatPhoneNumber(phoneNumber: string): string {
-    // Ensure phone number is in international format
     let formatted = phoneNumber.replace(/[\s\-\(\)]/g, '');
     
     if (formatted.startsWith('0')) {

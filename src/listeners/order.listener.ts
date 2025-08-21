@@ -17,7 +17,6 @@ export class OrderListener {
     this.logger.log(`Handling order created event - Order: ${event.orderNumber}`);
     
     try {
-      // Send order confirmation email to customer
       await this.mailService.sendOrderConfirmationEmail(
         event.customerEmail,
         {
@@ -43,7 +42,6 @@ export class OrderListener {
     );
     
     try {
-      // Send status update email to customer
       await this.mailService.sendOrderStatusUpdateEmail(
         event.customerEmail,
         {
@@ -68,7 +66,6 @@ export class OrderListener {
     this.logger.log(`Handling order cancellation - Order: ${event.orderNumber}`);
     
     try {
-      // Send cancellation email to customer
       await this.mailService.sendOrderCancellationEmail(
         event.customerEmail,
         {
@@ -91,7 +88,6 @@ export class OrderListener {
     );
     
     try {
-      // Send payment confirmation email if payment is successful
       if (event.paymentStatus === 'paid') {
         await this.mailService.sendPaymentConfirmationEmail(
           event.customerId,

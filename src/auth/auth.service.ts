@@ -45,7 +45,7 @@ export class AuthService {
 
     private jwtService: JwtService,
     private configService: ConfigService,
-    private eventEmitter: EventEmitter2, // Add EventEmitter
+    private eventEmitter: EventEmitter2, 
   ) {}
 
   async signup(signupData: SignupDto) {

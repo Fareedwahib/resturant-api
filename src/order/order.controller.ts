@@ -81,7 +81,6 @@ export class OrderController {
     const order = await this.orderService.findByOrderNumber(orderNumber);
     const user = await this.userRepository.findOne({ where: { id: req.user.userId } });
 
-    // Check if user can view this order
     if (order.customerId !== req.user.userId &&
       (!user || ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(user.role))) {
       throw new ForbiddenException('You can only view your own orders');
@@ -96,7 +95,6 @@ export class OrderController {
     const order = await this.orderService.findOne(id);
     const user = await this.userRepository.findOne({ where: { id: req.user.userId } });
 
-    // Check if user can view this order
     if (order.customerId !== req.user.userId &&
       (!user || ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(user.role))) {
       throw new ForbiddenException('You can only view your own orders');
