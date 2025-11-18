@@ -82,7 +82,7 @@ import { MailService } from './services/mail.service';
       }),
       inject: [ConfigService],
     }),
-    
+
     AuthModule,
     TypeOrmModule.forFeature([
       User,
@@ -93,7 +93,7 @@ import { MailService } from './services/mail.service';
       OrderItem,
       Payment,
       PaymentWebhook,
-    ]), 
+    ]),
     // MongoDB connection configuration
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
@@ -101,12 +101,12 @@ import { MailService } from './services/mail.service';
         uri: configService.get<string>('mongodb.uri'),
       }),
       inject: [ConfigService],
-    }), 
-    CategoriesModule, 
+    }),
+    CategoriesModule,
     MenueModule,
     OrderModule,
     PaymentModule,
- ],
+  ],
 
   controllers: [AppController],
   providers: [
@@ -115,10 +115,9 @@ import { MailService } from './services/mail.service';
     // Event Listeners
     UserListener,
     AuditListener,
-    OrderListener, 
-    InventoryListener,  
-    NotificationListener, 
+    OrderListener,
+    InventoryListener,
+    NotificationListener,
   ],
 })
-
 export class AppModule {}

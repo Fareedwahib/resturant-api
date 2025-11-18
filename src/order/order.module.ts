@@ -8,9 +8,7 @@ import { Menue } from '../menue/entities/menue.entity';
 import { MailService } from '../services/mail.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Order, OrderItem, User, Menue])
-  ],
+  imports: [TypeOrmModule.forFeature([Order, OrderItem, User, Menue])],
   controllers: [OrderController],
   providers: [OrderService, MailService],
   exports: [OrderService, TypeOrmModule],

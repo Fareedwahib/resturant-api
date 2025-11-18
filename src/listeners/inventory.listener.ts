@@ -17,7 +17,7 @@ export class InventoryListener {
   @OnEvent('inventory.update-required')
   async handleInventoryUpdateRequired(event: InventoryUpdateRequiredEvent) {
     this.logger.log(
-      `Handling inventory update for order: ${event.orderNumber}`
+      `Handling inventory update for order: ${event.orderNumber}`,
     );
 
     try {
@@ -26,28 +26,30 @@ export class InventoryListener {
           await this.menuRepository.decrement(
             { id: item.menuItemId },
             'stock',
-            item.quantity
+            item.quantity,
           );
           this.logger.log(
-            `Decremented stock for menu item ${item.menuItemId} by ${item.quantity}`
+            `Decremented stock for menu item ${item.menuItemId} by ${item.quantity}`,
           );
         } else if (item.operation === 'increment') {
           await this.menuRepository.increment(
             { id: item.menuItemId },
             'stock',
-            item.quantity
+            item.quantity,
           );
           this.logger.log(
-            `Incremented stock for menu item ${item.menuItemId} by ${item.quantity}`
+            `Incremented stock for menu item ${item.menuItemId} by ${item.quantity}`,
           );
         }
       }
 
-      this.logger.log(`Inventory updated successfully for order ${event.orderNumber}`);
+      this.logger.log(
+        `Inventory updated successfully for order ${event.orderNumber}`,
+      );
     } catch (error) {
       this.logger.error(
         `Failed to update inventory for order ${event.orderNumber}:`,
-        error
+        error,
       );
     }
   }
@@ -55,9 +57,9 @@ export class InventoryListener {
   @OnEvent('inventory.low-stock-alert')
   async handleLowStockAlert(menuItemId: number, currentStock: number) {
     this.logger.warn(
-      `Low stock alert: Menu item ${menuItemId} has only ${currentStock} items left`
+      `Low stock alert: Menu item ${menuItemId} has only ${currentStock} items left`,
     );
-    
+
     // You could send notification to admin here
     // await this.mailService.sendLowStockAlert(adminEmail, menuItem);
   }

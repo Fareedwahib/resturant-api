@@ -11,7 +11,7 @@ import { Request } from 'express';
 
 @Injectable()
 export class AuthenticationGuard implements CanActivate {
-  constructor(private jwtService: JwtService) { }
+  constructor(private jwtService: JwtService) {}
 
   canActivate(
     context: ExecutionContext,
@@ -27,7 +27,7 @@ export class AuthenticationGuard implements CanActivate {
       const payload = this.jwtService.verify(token);
       request.user = {
         userId: payload.userId,
-        role: payload.role, 
+        role: payload.role,
       };
     } catch (e) {
       Logger.error(e.message);

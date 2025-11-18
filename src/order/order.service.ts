@@ -4,12 +4,17 @@ import {
   BadRequestException,
   ForbiddenException,
   InternalServerErrorException,
-  Logger, 
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, FindManyOptions, Not, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter'; // Add EventEmitter2 import
-import { Order, OrderItem, OrderStatus, PaymentStatus } from './entities/order.entity';
+import {
+  Order,
+  OrderItem,
+  OrderStatus,
+  PaymentStatus,
+} from './entities/order.entity';
 import { User, UserRole, UserStatus } from '../auth/entities/user.entity';
 import { Menue } from '../menue/entities/menue.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -36,15 +41,18 @@ export class OrderService {
     @InjectRepository(Menue)
     private menuRepository: Repository<Menue>,
     private mailService: MailService,
-    private eventEmitter: EventEmitter2, 
-  ) { }
+    private eventEmitter: EventEmitter2,
+  ) {}
 
-  async create(createOrderDto: CreateOrderDto, customerId: string): Promise<Order> {
+  async create(
+    createOrderDto: CreateOrderDto,
+    customerId: string,
+  ): Promise<Order> {
     try {
       // Check if customer exists
       const customer = await this.userRepository.findOne({
         where: { id: customerId },
-        select: ['id', 'name', 'email', 'phone'] 
+        select: ['id', 'name', 'email', 'phone'],
       });
 
       if (!customer) {
@@ -74,16 +82,20 @@ export class OrderService {
         });
 
         if (!menuItem) {
-          throw new BadRequestException(`Menu item with ID ${item.menuItemId} not found`);
+          throw new BadRequestException(
+            `Menu item with ID ${item.menuItemId} not found`,
+          );
         }
 
         if (!menuItem.isActive) {
-          throw new BadRequestException(`Menu item "${menuItem.name}" is not available`);
+          throw new BadRequestException(
+            `Menu item "${menuItem.name}" is not available`,
+          );
         }
 
         if (menuItem.stock < item.quantity) {
           throw new BadRequestException(
-            `Insufficient stock for "${menuItem.name}". Available: ${menuItem.stock}, Requested: ${item.quantity}`
+            `Insufficient stock for "${menuItem.name}". Available: ${menuItem.stock}, Requested: ${item.quantity}`,
           );
         }
 
@@ -142,7 +154,7 @@ export class OrderService {
         await this.menuRepository.decrement(
           { id: itemData.menuItemId },
           'stock',
-          itemData.quantity
+          itemData.quantity,
         );
       }
 
@@ -150,42 +162,51 @@ export class OrderService {
       await this.sendOrderConfirmationEmail(savedOrder);
 
       // Emitting inventory update event
-      this.eventEmitter.emit('inventory.update-required', new InventoryUpdateRequiredEvent(
-        inventoryUpdates,
-        savedOrder.id,
-        savedOrder.orderNumber
-      ));
+      this.eventEmitter.emit(
+        'inventory.update-required',
+        new InventoryUpdateRequiredEvent(
+          inventoryUpdates,
+          savedOrder.id,
+          savedOrder.orderNumber,
+        ),
+      );
 
       // Emitting order created event
-      this.eventEmitter.emit('order.created', new OrderCreatedEvent(
-        savedOrder.id,
-        savedOrder.orderNumber,
-        customer.id,
-        customer.email,
-        customer.name,
-        orderItems.map(item => ({
-          menuItemId: item.menuItemId,
-          menuItemName: item.menuItemName,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-        })),
-        totalAmount,
-        createOrderDto.deliveryAddress,
-        createOrderDto.paymentMethod
-      ));
+      this.eventEmitter.emit(
+        'order.created',
+        new OrderCreatedEvent(
+          savedOrder.id,
+          savedOrder.orderNumber,
+          customer.id,
+          customer.email,
+          customer.name,
+          orderItems.map((item) => ({
+            menuItemId: item.menuItemId,
+            menuItemName: item.menuItemName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+          })),
+          totalAmount,
+          createOrderDto.deliveryAddress,
+          createOrderDto.paymentMethod,
+        ),
+      );
 
       this.logger.log(`Order created successfully: ${savedOrder.orderNumber}`);
 
       return await this.findOne(savedOrder.id);
-
     } catch (error) {
-      if (error instanceof NotFoundException ||
-        error instanceof BadRequestException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
 
-      throw new InternalServerErrorException(`Failed to create order: ${error.message}`);
+      throw new InternalServerErrorException(
+        `Failed to create order: ${error.message}`,
+      );
     }
   }
 
@@ -195,11 +216,15 @@ export class OrderService {
     if (queryDto.status) where.status = queryDto.status;
     if (queryDto.paymentStatus) where.paymentStatus = queryDto.paymentStatus;
     if (queryDto.customerId) where.customerId = queryDto.customerId;
-    if (queryDto.deliveryStaffId) where.deliveryStaffId = queryDto.deliveryStaffId;
+    if (queryDto.deliveryStaffId)
+      where.deliveryStaffId = queryDto.deliveryStaffId;
     if (queryDto.orderNumber) where.orderNumber = queryDto.orderNumber;
 
     if (queryDto.startDate && queryDto.endDate) {
-      where.createdAt = Between(new Date(queryDto.startDate), new Date(queryDto.endDate));
+      where.createdAt = Between(
+        new Date(queryDto.startDate),
+        new Date(queryDto.endDate),
+      );
     }
 
     return await this.orderRepository.find({
@@ -251,7 +276,7 @@ export class OrderService {
     return await this.orderRepository.find({
       where: {
         customerId,
-        status: Not(In([OrderStatus.CANCELLED, OrderStatus.DELIVERED]))
+        status: Not(In([OrderStatus.CANCELLED, OrderStatus.DELIVERED])),
       },
       relations: ['items'],
       order: { createdAt: 'DESC' },
@@ -275,9 +300,9 @@ export class OrderService {
     userId: string,
   ): Promise<Order> {
     const order = await this.findOne(orderId);
-    const user = await this.userRepository.findOne({ 
+    const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'name', 'email', 'role'] 
+      select: ['id', 'name', 'email', 'role'],
     });
 
     if (!user) {
@@ -286,22 +311,25 @@ export class OrderService {
 
     const customer = await this.userRepository.findOne({
       where: { id: order.customerId },
-      select: ['id', 'name', 'email']
+      select: ['id', 'name', 'email'],
     });
 
     this.validateStatusTransition(order.status, updateStatusDto.status);
 
     this.validateUpdatePermissions(user, order, updateStatusDto.status);
 
-    const oldStatus = order.status; 
+    const oldStatus = order.status;
     let deliveryStaff: User | null = null;
 
     order.status = updateStatusDto.status;
 
     if (updateStatusDto.deliveryStaffId) {
       deliveryStaff = await this.userRepository.findOne({
-        where: { id: updateStatusDto.deliveryStaffId, role: UserRole.DELIVERY_STAFF },
-        select: ['id', 'name', 'email']
+        where: {
+          id: updateStatusDto.deliveryStaffId,
+          role: UserRole.DELIVERY_STAFF,
+        },
+        select: ['id', 'name', 'email'],
       });
 
       if (!deliveryStaff) {
@@ -316,14 +344,17 @@ export class OrderService {
       order.paymentStatus = PaymentStatus.PAID; // Assume payment on delivery
 
       // Emitting payment updated event
-      this.eventEmitter.emit('order.payment-updated', new OrderPaymentUpdatedEvent(
-        order.id,
-        order.orderNumber,
-        order.customerId,
-        PaymentStatus.PAID,
-        order.paymentMethod,
-        order.totalAmount
-      ));
+      this.eventEmitter.emit(
+        'order.payment-updated',
+        new OrderPaymentUpdatedEvent(
+          order.id,
+          order.orderNumber,
+          order.customerId,
+          PaymentStatus.PAID,
+          order.paymentMethod,
+          order.totalAmount,
+        ),
+      );
     }
 
     const updatedOrder = await this.orderRepository.save(order);
@@ -333,32 +364,41 @@ export class OrderService {
 
     // Emitting order status updated event
     if (customer) {
-      this.eventEmitter.emit('order.status-updated', new OrderStatusUpdatedEvent(
-        order.id,
-        order.orderNumber,
-        customer.id,
-        customer.email,
-        customer.name,
-        oldStatus,
-        updateStatusDto.status,
-        deliveryStaff?.id,
-        deliveryStaff?.name,
-        order.estimatedDeliveryTime,
-        order.actualDeliveryTime
-      ));
+      this.eventEmitter.emit(
+        'order.status-updated',
+        new OrderStatusUpdatedEvent(
+          order.id,
+          order.orderNumber,
+          customer.id,
+          customer.email,
+          customer.name,
+          oldStatus,
+          updateStatusDto.status,
+          deliveryStaff?.id,
+          deliveryStaff?.name,
+          order.estimatedDeliveryTime,
+          order.actualDeliveryTime,
+        ),
+      );
     }
 
-    this.logger.log(`Order status updated: ${order.orderNumber} from ${oldStatus} to ${updateStatusDto.status}`);
+    this.logger.log(
+      `Order status updated: ${order.orderNumber} from ${oldStatus} to ${updateStatusDto.status}`,
+    );
 
     return await this.findOne(updatedOrder.id);
   }
 
-  async cancelOrderAndDelete(id: string, userId: string, reason?: string): Promise<{ message: string }> {
+  async cancelOrderAndDelete(
+    id: string,
+    userId: string,
+    reason?: string,
+  ): Promise<{ message: string }> {
     // Find the order by ID including its items
     const order = await this.findOne(id);
-    const user = await this.userRepository.findOne({ 
+    const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'name', 'email', 'role'] 
+      select: ['id', 'name', 'email', 'role'],
     });
 
     if (!user) {
@@ -367,17 +407,22 @@ export class OrderService {
 
     const customer = await this.userRepository.findOne({
       where: { id: order.customerId },
-      select: ['id', 'name', 'email']
+      select: ['id', 'name', 'email'],
     });
 
     // Only the customer who placed the order, or admins/staff can cancel/delete it
-    if (order.customerId !== userId && ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
+    if (
+      order.customerId !== userId &&
+      ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)
+    ) {
       throw new ForbiddenException('You can only cancel your own orders');
     }
 
     // Prevent deletion if the order is already delivered
     if (order.status === OrderStatus.DELIVERED) {
-      throw new BadRequestException('Delivered orders cannot be cancelled or deleted.');
+      throw new BadRequestException(
+        'Delivered orders cannot be cancelled or deleted.',
+      );
     }
 
     // Prepare inventory restoration for event
@@ -385,7 +430,7 @@ export class OrderService {
       menuItemId: number;
       quantity: number;
       operation: 'increment' | 'decrement';
-    }> = order.items.map(item => ({
+    }> = order.items.map((item) => ({
       menuItemId: item.menuItemId,
       quantity: item.quantity,
       operation: 'increment' as const,
@@ -401,28 +446,34 @@ export class OrderService {
     }
 
     // Emitting inventory update event for stock restoration
-    this.eventEmitter.emit('inventory.update-required', new InventoryUpdateRequiredEvent(
-      inventoryUpdates,
-      order.id,
-      order.orderNumber
-    ));
+    this.eventEmitter.emit(
+      'inventory.update-required',
+      new InventoryUpdateRequiredEvent(
+        inventoryUpdates,
+        order.id,
+        order.orderNumber,
+      ),
+    );
 
     // Emitting order cancelled event
     if (customer) {
-      this.eventEmitter.emit('order.cancelled', new OrderCancelledEvent(
-        order.id,
-        order.orderNumber,
-        customer.id,
-        customer.email,
-        customer.name,
-        order.items.map(item => ({
-          menuItemId: item.menuItemId,
-          menuItemName: item.menuItemName,
-          quantity: item.quantity,
-        })),
-        reason ?? '',
-        userId
-      ));
+      this.eventEmitter.emit(
+        'order.cancelled',
+        new OrderCancelledEvent(
+          order.id,
+          order.orderNumber,
+          customer.id,
+          customer.email,
+          customer.name,
+          order.items.map((item) => ({
+            menuItemId: item.menuItemId,
+            menuItemName: item.menuItemName,
+            quantity: item.quantity,
+          })),
+          reason ?? '',
+          userId,
+        ),
+      );
     }
 
     // Delete all order items first to avoid foreign key constraint errors
@@ -434,7 +485,9 @@ export class OrderService {
 
     this.logger.log(`Order cancelled and deleted: ${order.orderNumber}`);
 
-    return { message: `Order ${order.orderNumber} and its details have been deleted successfully.` };
+    return {
+      message: `Order ${order.orderNumber} and its details have been deleted successfully.`,
+    };
   }
 
   async getOrderStatistics(userId: string) {
@@ -470,7 +523,11 @@ export class OrderService {
     };
   }
 
-  async assignDeliveryStaff(orderId: string, deliveryStaffId: string, adminId: string): Promise<Order> {
+  async assignDeliveryStaff(
+    orderId: string,
+    deliveryStaffId: string,
+    adminId: string,
+  ): Promise<Order> {
     const admin = await this.userRepository.findOne({ where: { id: adminId } });
     if (!admin || admin.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Only admins can assign delivery staff');
@@ -486,7 +543,9 @@ export class OrderService {
     }
 
     if (order.status !== OrderStatus.READY) {
-      throw new BadRequestException('Order must be ready before assigning delivery staff');
+      throw new BadRequestException(
+        'Order must be ready before assigning delivery staff',
+      );
     }
 
     order.deliveryStaffId = deliveryStaffId;
@@ -502,33 +561,42 @@ export class OrderService {
     });
   }
 
-  // Method to update order payment status 
-  async updateOrderPaymentStatus(orderId: string, paymentStatus: PaymentStatus, transactionId?: string): Promise<Order> {
+  // Method to update order payment status
+  async updateOrderPaymentStatus(
+    orderId: string,
+    paymentStatus: PaymentStatus,
+    transactionId?: string,
+  ): Promise<Order> {
     const order = await this.findOne(orderId);
     const oldPaymentStatus = order.paymentStatus;
     order.paymentStatus = paymentStatus;
-    
+
     const updatedOrder = await this.orderRepository.save(order);
 
     // Emitting payment updated event
-    this.eventEmitter.emit('order.payment-updated', new OrderPaymentUpdatedEvent(
-      order.id,
-      order.orderNumber,
-      order.customerId,
-      paymentStatus,
-      order.paymentMethod,
-      order.totalAmount,
-      transactionId
-    ));
+    this.eventEmitter.emit(
+      'order.payment-updated',
+      new OrderPaymentUpdatedEvent(
+        order.id,
+        order.orderNumber,
+        order.customerId,
+        paymentStatus,
+        order.paymentMethod,
+        order.totalAmount,
+        transactionId,
+      ),
+    );
 
-    this.logger.log(`Payment status updated for order ${order.orderNumber}: ${oldPaymentStatus} → ${paymentStatus}`);
+    this.logger.log(
+      `Payment status updated for order ${order.orderNumber}: ${oldPaymentStatus} → ${paymentStatus}`,
+    );
 
     return updatedOrder;
   }
 
   // Keep all existing private methods exactly the same...
   private calculateDeliveryFee(subtotal: number): number {
-    // Simple delivery fee calculation 
+    // Simple delivery fee calculation
     if (subtotal >= 50000) return 0; // Free delivery for orders above 50k UGX
     return 5000; // 5k UGX delivery fee
   }
@@ -547,7 +615,9 @@ export class OrderService {
     let attempts = 0;
 
     do {
-      const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const randomSuffix = Math.floor(Math.random() * 1000)
+        .toString()
+        .padStart(3, '0');
       orderNumber = `${prefix}${timestamp}${randomSuffix}`;
       attempts++;
 
@@ -558,28 +628,39 @@ export class OrderService {
       if (!existing) break;
 
       if (attempts > 10) {
-        throw new InternalServerErrorException('Failed to generate unique order number');
+        throw new InternalServerErrorException(
+          'Failed to generate unique order number',
+        );
       }
     } while (true);
 
     return orderNumber;
   }
 
-  private validateStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus): void {
+  private validateStatusTransition(
+    currentStatus: OrderStatus,
+    newStatus: OrderStatus,
+  ): void {
     const validTransitions: Record<OrderStatus, OrderStatus[]> = {
       [OrderStatus.PENDING]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
       [OrderStatus.CONFIRMED]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
       [OrderStatus.PREPARING]: [OrderStatus.READY, OrderStatus.CANCELLED],
-      [OrderStatus.READY]: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.CANCELLED],
-      [OrderStatus.OUT_FOR_DELIVERY]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
-      [OrderStatus.DELIVERED]: [], 
+      [OrderStatus.READY]: [
+        OrderStatus.OUT_FOR_DELIVERY,
+        OrderStatus.CANCELLED,
+      ],
+      [OrderStatus.OUT_FOR_DELIVERY]: [
+        OrderStatus.DELIVERED,
+        OrderStatus.CANCELLED,
+      ],
+      [OrderStatus.DELIVERED]: [],
       [OrderStatus.CANCELLED]: [],
-      [OrderStatus.PARTIALLY_REFUNDED]: []
+      [OrderStatus.PARTIALLY_REFUNDED]: [],
     };
 
     if (!validTransitions[currentStatus].includes(newStatus)) {
       throw new BadRequestException(
-        `Invalid status transition from ${currentStatus} to ${newStatus}`
+        `Invalid status transition from ${currentStatus} to ${newStatus}`,
       );
     }
   }
@@ -593,24 +674,45 @@ export class OrderService {
       case UserRole.ADMIN:
         break;
       case UserRole.STAFF:
-        if ([OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED].includes(newStatus)) {
-          throw new ForbiddenException('Only delivery staff can update delivery statuses');
+        if (
+          [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED].includes(
+            newStatus,
+          )
+        ) {
+          throw new ForbiddenException(
+            'Only delivery staff can update delivery statuses',
+          );
         }
         break;
       case UserRole.DELIVERY_STAFF:
-        if (![OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED].includes(newStatus)) {
-          throw new ForbiddenException('Delivery staff can only update delivery statuses');
+        if (
+          ![OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED].includes(
+            newStatus,
+          )
+        ) {
+          throw new ForbiddenException(
+            'Delivery staff can only update delivery statuses',
+          );
         }
         if (order.deliveryStaffId !== user.id) {
-          throw new ForbiddenException('You can only update orders assigned to you');
+          throw new ForbiddenException(
+            'You can only update orders assigned to you',
+          );
         }
         break;
       case UserRole.CUSTOMER:
-        if (newStatus !== OrderStatus.CANCELLED || order.customerId !== user.id) {
-          throw new ForbiddenException('Customers can only cancel their own pending orders');
+        if (
+          newStatus !== OrderStatus.CANCELLED ||
+          order.customerId !== user.id
+        ) {
+          throw new ForbiddenException(
+            'Customers can only cancel their own pending orders',
+          );
         }
         if (order.status !== OrderStatus.PENDING) {
-          throw new ForbiddenException('Order cannot be cancelled at this stage');
+          throw new ForbiddenException(
+            'Order cannot be cancelled at this stage',
+          );
         }
         break;
       default:
@@ -649,7 +751,10 @@ export class OrderService {
     }
   }
 
-  private async sendCancellationNotification(order: Order, reason?: string): Promise<void> {
+  private async sendCancellationNotification(
+    order: Order,
+    reason?: string,
+  ): Promise<void> {
     try {
       const customer = await this.userRepository.findOne({
         where: { id: order.customerId },

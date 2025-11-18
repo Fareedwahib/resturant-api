@@ -21,13 +21,13 @@ export class MobileMoneyService {
     phoneNumber: string,
     amount: number,
     reference: string,
-    description: string
+    description: string,
   ): Promise<MobileMoneyTransaction> {
     try {
       // MTN MoMo API integration
       const mtnApiKey = this.configService.get('MTN_API_KEY');
       const mtnSubscriptionKey = this.configService.get('MTN_SUBSCRIPTION_KEY');
-      
+
       if (!mtnApiKey || !mtnSubscriptionKey) {
         this.logger.warn('MTN MoMo credentials not configured');
         return this.simulateTransaction(MobileMoneyProvider.MTN);
@@ -58,7 +58,6 @@ export class MobileMoneyService {
 
       // For now, simulate the transaction
       return this.simulateTransaction(MobileMoneyProvider.MTN);
-
     } catch (error) {
       this.logger.error('MTN payment failed:', error);
       return {
@@ -74,12 +73,12 @@ export class MobileMoneyService {
     phoneNumber: string,
     amount: number,
     reference: string,
-    description: string
+    description: string,
   ): Promise<MobileMoneyTransaction> {
     try {
       // Airtel Money API integration
       const airtelApiKey = this.configService.get('AIRTEL_API_KEY');
-      
+
       if (!airtelApiKey) {
         this.logger.warn('Airtel Money credentials not configured');
         return this.simulateTransaction(MobileMoneyProvider.AIRTEL);
@@ -87,9 +86,8 @@ export class MobileMoneyService {
 
       // Real Airtel Money API call would go here
       // Implementation similar to MTN but with Airtel's API structure
-      
-      return this.simulateTransaction(MobileMoneyProvider.AIRTEL);
 
+      return this.simulateTransaction(MobileMoneyProvider.AIRTEL);
     } catch (error) {
       this.logger.error('Airtel payment failed:', error);
       return {
@@ -103,20 +101,22 @@ export class MobileMoneyService {
 
   async checkTransactionStatus(
     provider: MobileMoneyProvider,
-    transactionId: string
+    transactionId: string,
   ): Promise<MobileMoneyTransaction> {
     switch (provider) {
       case MobileMoneyProvider.MTN:
         return await this.checkMTNTransactionStatus(transactionId);
       case MobileMoneyProvider.AIRTEL:
         return await this.checkAirtelTransactionStatus(transactionId);
-    
+
       default:
         throw new BadRequestException('Unsupported mobile money provider');
     }
   }
 
-  private async checkMTNTransactionStatus(transactionId: string): Promise<MobileMoneyTransaction> {
+  private async checkMTNTransactionStatus(
+    transactionId: string,
+  ): Promise<MobileMoneyTransaction> {
     try {
       // Real MTN status check API call would go here
       // For now, simulate response
@@ -132,10 +132,15 @@ export class MobileMoneyService {
     }
   }
 
-  private async checkAirtelTransactionStatus(transactionId: string): Promise<MobileMoneyTransaction> {
+  private async checkAirtelTransactionStatus(
+    transactionId: string,
+  ): Promise<MobileMoneyTransaction> {
     try {
       // Real Airtel status check API call would go here
-      return this.simulateStatusCheck(MobileMoneyProvider.AIRTEL, transactionId);
+      return this.simulateStatusCheck(
+        MobileMoneyProvider.AIRTEL,
+        transactionId,
+      );
     } catch (error) {
       this.logger.error('Airtel status check failed:', error);
       return {
@@ -147,8 +152,9 @@ export class MobileMoneyService {
     }
   }
 
-
-  private simulateTransaction(provider: MobileMoneyProvider): MobileMoneyTransaction {
+  private simulateTransaction(
+    provider: MobileMoneyProvider,
+  ): MobileMoneyTransaction {
     // Simulate different success rates for different providers
     const successRates = {
       [MobileMoneyProvider.MTN]: 0.92,
@@ -183,7 +189,10 @@ export class MobileMoneyService {
     }
   }
 
-  private simulateStatusCheck(provider: MobileMoneyProvider, transactionId: string): MobileMoneyTransaction {
+  private simulateStatusCheck(
+    provider: MobileMoneyProvider,
+    transactionId: string,
+  ): MobileMoneyTransaction {
     // Simulate status check - in real implementation, you'd query the provider's API
     const statuses = ['completed', 'pending', 'failed'];
     const status = statuses[Math.floor(Math.random() * statuses.length)];
@@ -196,10 +205,13 @@ export class MobileMoneyService {
     };
   }
 
-  validatePhoneNumber(phoneNumber: string, provider: MobileMoneyProvider): boolean {
+  validatePhoneNumber(
+    phoneNumber: string,
+    provider: MobileMoneyProvider,
+  ): boolean {
     // Remove any formatting
     const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, '');
-    
+
     switch (provider) {
       case MobileMoneyProvider.MTN:
         // MTN Uganda numbers: 077, 078, 039
@@ -214,13 +226,13 @@ export class MobileMoneyService {
 
   formatPhoneNumber(phoneNumber: string): string {
     let formatted = phoneNumber.replace(/[\s\-\(\)]/g, '');
-    
+
     if (formatted.startsWith('0')) {
       formatted = '256' + formatted.substring(1);
     } else if (!formatted.startsWith('256')) {
       formatted = '256' + formatted;
     }
-    
+
     return formatted;
   }
 }

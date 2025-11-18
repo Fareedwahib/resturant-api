@@ -68,7 +68,7 @@ export class MenueController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateMenueDto: UpdateMenueDto,
-    @Req() req
+    @Req() req,
   ) {
     return await this.menueService.update(id, updateMenueDto, req.user.userId);
   }
@@ -79,7 +79,7 @@ export class MenueController {
   async updateStock(
     @Param('id', ParseIntPipe) id: number,
     @Body('stock', ParseIntPipe) stock: number,
-    @Req() req
+    @Req() req,
   ) {
     return await this.menueService.updateStock(id, stock, req.user.userId);
   }

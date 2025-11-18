@@ -45,7 +45,7 @@ export class AuthService {
 
     private jwtService: JwtService,
     private configService: ConfigService,
-    private eventEmitter: EventEmitter2, 
+    private eventEmitter: EventEmitter2,
   ) {}
 
   async signup(signupData: SignupDto) {
@@ -76,13 +76,16 @@ export class AuthService {
 
     await this.userRepository.save(user);
 
-    this.eventEmitter.emit('user.registered', new UserRegisteredEvent(
-      user.id,
-      user.email,
-      user.name,
-      user.role,
-      user.status,
-    ));
+    this.eventEmitter.emit(
+      'user.registered',
+      new UserRegisteredEvent(
+        user.id,
+        user.email,
+        user.name,
+        user.role,
+        user.status,
+      ),
+    );
 
     let message = 'User created successfully';
     if (status === UserStatus.PENDING_APPROVAL) {
@@ -138,15 +141,16 @@ export class AuthService {
 
       await this.deliveryStaffRepository.save(deliveryStaff);
 
-      const adminEmail = this.configService.get('ADMIN_EMAIL') ?? 'admin@example.com';
+      const adminEmail =
+        this.configService.get('ADMIN_EMAIL') ?? 'admin@example.com';
 
       if (!adminEmail) {
         throw new InternalServerErrorException('Admin email not configured');
       }
 
-      this.eventEmitter.emit('delivery-staff.registered', new DeliveryStaffRegisteredEvent(
-        adminEmail,
-        {
+      this.eventEmitter.emit(
+        'delivery-staff.registered',
+        new DeliveryStaffRegisteredEvent(adminEmail, {
           email: user.email,
           firstName: dto.firstName,
           lastName: dto.lastName,
@@ -156,8 +160,8 @@ export class AuthService {
           selfieUrl: dto.selfieUrl,
           nationalIdFrontUrl: dto.nationalIdFrontUrl,
           nationalIdBackUrl: dto.nationalIdBackUrl,
-        },
-      ));
+        }),
+      );
 
       return {
         status: 'pending_review',
@@ -166,7 +170,9 @@ export class AuthService {
         userId: user.id,
       };
     } catch (error) {
-      throw new InternalServerErrorException('Failed to register delivery staff');
+      throw new InternalServerErrorException(
+        'Failed to register delivery staff',
+      );
     }
   }
 
@@ -202,7 +208,11 @@ export class AuthService {
     };
   }
 
-  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+  async changePassword(
+    userId: string,
+    oldPassword: string,
+    newPassword: string,
+  ) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found...');
@@ -235,11 +245,10 @@ export class AuthService {
       });
 
       await this.resetTokenRepository.save(resetTokenEntity);
-      this.eventEmitter.emit('user.password-reset-requested', new PasswordResetRequestedEvent(
-        email,
-        resetToken,
-        user.name,
-      ));
+      this.eventEmitter.emit(
+        'user.password-reset-requested',
+        new PasswordResetRequestedEvent(email, resetToken, user.name),
+      );
     }
 
     return { message: 'If this user exists, they will receive an email' };
@@ -259,7 +268,9 @@ export class AuthService {
 
     await this.resetTokenRepository.remove(token);
 
-    const user = await this.userRepository.findOne({ where: { id: token.userId } });
+    const user = await this.userRepository.findOne({
+      where: { id: token.userId },
+    });
     if (!user) {
       throw new InternalServerErrorException();
     }
@@ -321,7 +332,16 @@ export class AuthService {
   async getUserProfile(userId: string) {
     const user = await this.userRepository.findOne({
       where: { id: userId },
-      select: ['id', 'name', 'email', 'role', 'status', 'phone', 'isEmailVerified', 'createdAt'],
+      select: [
+        'id',
+        'name',
+        'email',
+        'role',
+        'status',
+        'phone',
+        'isEmailVerified',
+        'createdAt',
+      ],
     });
 
     if (!user) {
@@ -331,13 +351,21 @@ export class AuthService {
     return user;
   }
 
-  async updateUserStatus(adminUserId: string, targetUserEmail: string, status: UserStatus) {
-    const adminUser = await this.userRepository.findOne({ where: { id: adminUserId } });
+  async updateUserStatus(
+    adminUserId: string,
+    targetUserEmail: string,
+    status: UserStatus,
+  ) {
+    const adminUser = await this.userRepository.findOne({
+      where: { id: adminUserId },
+    });
     if (!adminUser || adminUser.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Only admins can update user status');
     }
 
-    const targetUser = await this.userRepository.findOne({ where: { email: targetUserEmail } });
+    const targetUser = await this.userRepository.findOne({
+      where: { email: targetUserEmail },
+    });
     if (!targetUser) {
       throw new NotFoundException('User not found');
     }
@@ -346,18 +374,23 @@ export class AuthService {
     targetUser.status = status;
     await this.userRepository.save(targetUser);
 
-    this.eventEmitter.emit('user.status-updated', new UserStatusUpdatedEvent(
-      targetUser.email,
-      targetUser.name,
-      oldStatus,
-      status,
-    ));
+    this.eventEmitter.emit(
+      'user.status-updated',
+      new UserStatusUpdatedEvent(
+        targetUser.email,
+        targetUser.name,
+        oldStatus,
+        status,
+      ),
+    );
 
     return { message: 'User status updated successfully', user: targetUser };
   }
 
   async getPendingUsers(adminUserId: string) {
-    const adminUser = await this.userRepository.findOne({ where: { id: adminUserId } });
+    const adminUser = await this.userRepository.findOne({
+      where: { id: adminUserId },
+    });
     if (!adminUser || adminUser.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Only admins can view pending users');
     }
@@ -372,7 +405,9 @@ export class AuthService {
   }
 
   async getAllUsers(adminUserId: string) {
-    const adminUser = await this.userRepository.findOne({ where: { id: adminUserId } });
+    const adminUser = await this.userRepository.findOne({
+      where: { id: adminUserId },
+    });
     if (!adminUser || adminUser.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Only admins can view all users');
     }
@@ -386,7 +421,9 @@ export class AuthService {
   }
 
   async getUsersByRole(adminUserId: string, role: UserRole) {
-    const adminUser = await this.userRepository.findOne({ where: { id: adminUserId } });
+    const adminUser = await this.userRepository.findOne({
+      where: { id: adminUserId },
+    });
     if (!adminUser || adminUser.role !== UserRole.ADMIN) {
       throw new ForbiddenException('Only admins can view users by role');
     }

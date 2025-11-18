@@ -20,30 +20,26 @@ export class NotificationListener {
   @OnEvent('order.created')
   async notifyStaffOfNewOrder(event: OrderCreatedEvent) {
     this.logger.log(`Notifying staff of new order: ${event.orderNumber}`);
-    
+
     try {
       const staffUsers = await this.userRepository.find({
-        where: [
-          { role: UserRole.ADMIN },
-          { role: UserRole.STAFF }
-        ],
-        select: ['id', 'email', 'name']
+        where: [{ role: UserRole.ADMIN }, { role: UserRole.STAFF }],
+        select: ['id', 'email', 'name'],
       });
 
       for (const staff of staffUsers) {
-        await this.mailService.sendNewOrderNotificationToStaff(
-          staff.email,
-          {
-            staffName: staff.name,
-            orderNumber: event.orderNumber,
-            customerName: event.customerName,
-            totalAmount: event.totalAmount,
-            itemsCount: event.items.length,
-          }
-        );
+        await this.mailService.sendNewOrderNotificationToStaff(staff.email, {
+          staffName: staff.name,
+          orderNumber: event.orderNumber,
+          customerName: event.customerName,
+          totalAmount: event.totalAmount,
+          itemsCount: event.items.length,
+        });
       }
-      
-      this.logger.log(`New order notifications sent to ${staffUsers.length} staff members`);
+
+      this.logger.log(
+        `New order notifications sent to ${staffUsers.length} staff members`,
+      );
     } catch (error) {
       this.logger.error(`Failed to send new order notifications:`, error);
     }
@@ -53,13 +49,13 @@ export class NotificationListener {
   async notifyDeliveryStaffOfAssignment(event: OrderStatusUpdatedEvent) {
     if (event.newStatus === 'out_for_delivery' && event.deliveryStaffId) {
       this.logger.log(
-        `Notifying delivery staff of order assignment: ${event.orderNumber}`
+        `Notifying delivery staff of order assignment: ${event.orderNumber}`,
       );
-      
+
       try {
         const deliveryStaff = await this.userRepository.findOne({
           where: { id: event.deliveryStaffId },
-          select: ['id', 'email', 'name']
+          select: ['id', 'email', 'name'],
         });
 
         if (deliveryStaff) {
@@ -69,15 +65,20 @@ export class NotificationListener {
               deliveryStaffName: deliveryStaff.name,
               orderNumber: event.orderNumber,
               customerName: event.customerName,
-              deliveryAddress: 'Address from order', 
+              deliveryAddress: 'Address from order',
               estimatedDeliveryTime: event.estimatedDeliveryTime,
-            }
+            },
           );
         }
-        
-        this.logger.log(`Delivery assignment notification sent to ${deliveryStaff?.email}`);
+
+        this.logger.log(
+          `Delivery assignment notification sent to ${deliveryStaff?.email}`,
+        );
       } catch (error) {
-        this.logger.error(`Failed to send delivery assignment notification:`, error);
+        this.logger.error(
+          `Failed to send delivery assignment notification:`,
+          error,
+        );
       }
     }
   }
