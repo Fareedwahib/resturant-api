@@ -24,11 +24,11 @@ export class CreatePaymentDto {
   @Max(999999.99, { message: 'Amount cannot exceed 999,999.99' })
   amount: number;
 
-  @ValidateIf(o => o.paymentMethod === PaymentMethod.MOBILE_MONEY)
+  @ValidateIf((o) => o.paymentMethod === PaymentMethod.MOBILE_MONEY)
   @IsEnum(MobileMoneyProvider)
   mobileMoneyProvider?: MobileMoneyProvider;
 
-  @ValidateIf(o => o.paymentMethod === PaymentMethod.MOBILE_MONEY)
+  @ValidateIf((o) => o.paymentMethod === PaymentMethod.MOBILE_MONEY)
   @IsPhoneNumber('UG')
   mobileMoneyNumber?: string;
 

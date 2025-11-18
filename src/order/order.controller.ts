@@ -31,7 +31,7 @@ export class OrderController {
     private readonly orderService: OrderService,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-  ) { }
+  ) {}
 
   @UseGuards(AuthenticationGuard, RoleGuard)
   @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.CUSTOMER)
@@ -77,12 +77,22 @@ export class OrderController {
 
   @UseGuards(AuthenticationGuard)
   @Get('number/:orderNumber')
-  async findByOrderNumber(@Param('orderNumber') orderNumber: string, @Req() req) {
+  async findByOrderNumber(
+    @Param('orderNumber') orderNumber: string,
+    @Req() req,
+  ) {
     const order = await this.orderService.findByOrderNumber(orderNumber);
-    const user = await this.userRepository.findOne({ where: { id: req.user.userId } });
+    const user = await this.userRepository.findOne({
+      where: { id: req.user.userId },
+    });
 
-    if (order.customerId !== req.user.userId &&
-      (!user || ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(user.role))) {
+    if (
+      order.customerId !== req.user.userId &&
+      (!user ||
+        ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(
+          user.role,
+        ))
+    ) {
       throw new ForbiddenException('You can only view your own orders');
     }
 
@@ -93,10 +103,17 @@ export class OrderController {
   @Get(':id')
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     const order = await this.orderService.findOne(id);
-    const user = await this.userRepository.findOne({ where: { id: req.user.userId } });
+    const user = await this.userRepository.findOne({
+      where: { id: req.user.userId },
+    });
 
-    if (order.customerId !== req.user.userId &&
-      (!user || ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(user.role))) {
+    if (
+      order.customerId !== req.user.userId &&
+      (!user ||
+        ![UserRole.ADMIN, UserRole.STAFF, UserRole.DELIVERY_STAFF].includes(
+          user.role,
+        ))
+    ) {
       throw new ForbiddenException('You can only view your own orders');
     }
 
@@ -108,9 +125,13 @@ export class OrderController {
   async updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateStatusDto: UpdateOrderStatusDto,
-    @Req() req
+    @Req() req,
   ) {
-    return await this.orderService.updateStatus(id, updateStatusDto, req.user.userId);
+    return await this.orderService.updateStatus(
+      id,
+      updateStatusDto,
+      req.user.userId,
+    );
   }
 
   @UseGuards(AuthenticationGuard)
@@ -119,9 +140,13 @@ export class OrderController {
   async cancelOrder(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
-    @Req() req
+    @Req() req,
   ) {
-    return await this.orderService.cancelOrderAndDelete(id, req.user.userId, reason);
+    return await this.orderService.cancelOrderAndDelete(
+      id,
+      req.user.userId,
+      reason,
+    );
   }
 
   @UseGuards(AuthenticationGuard, RoleGuard)
@@ -130,8 +155,12 @@ export class OrderController {
   async assignDeliveryStaff(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('deliveryStaffId', ParseUUIDPipe) deliveryStaffId: string,
-    @Req() req
+    @Req() req,
   ) {
-    return await this.orderService.assignDeliveryStaff(id, deliveryStaffId, req.user.userId);
+    return await this.orderService.assignDeliveryStaff(
+      id,
+      deliveryStaffId,
+      req.user.userId,
+    );
   }
 }

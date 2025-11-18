@@ -10,7 +10,9 @@ export class AuditListener {
 
   @OnEvent('user.registered')
   async logUserRegistered(event: UserRegisteredEvent) {
-    this.logger.log(`New User registered - ID: ${event.userId}, Email: ${event.email}, Role: ${event.role}`);
+    this.logger.log(
+      `New User registered - ID: ${event.userId}, Email: ${event.email}, Role: ${event.role}`,
+    );
   }
 
   @OnEvent('user.password-reset-requested')
@@ -20,11 +22,15 @@ export class AuditListener {
 
   @OnEvent('user.status-updated')
   async logUserStatusUpdated(event: UserStatusUpdatedEvent) {
-    this.logger.log(`User status changed - Email: ${event.userEmail}, From: ${event.oldStatus}, To: ${event.newStatus}`);
+    this.logger.log(
+      `User status changed - Email: ${event.userEmail}, From: ${event.oldStatus}, To: ${event.newStatus}`,
+    );
   }
 
   @OnEvent('delivery-staff.registered')
   async logDeliveryStaffRegistered(event: any) {
-    this.logger.log(`New Delivery staff registered - Email: ${event.deliveryStaff.email}`);
+    this.logger.log(
+      `New Delivery staff registered - Email: ${event.deliveryStaff.email}`,
+    );
   }
 }

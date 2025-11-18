@@ -40,7 +40,10 @@ export class PaymentController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createPayment(@Body() createPaymentDto: CreatePaymentDto, @Req() req) {
-    return await this.paymentService.createPayment(createPaymentDto, req.user.userId);
+    return await this.paymentService.createPayment(
+      createPaymentDto,
+      req.user.userId,
+    );
   }
 
   @UseGuards(AuthenticationGuard, RoleGuard)
@@ -67,33 +70,41 @@ export class PaymentController {
   @Get('order/:orderId')
   async getPaymentsByOrder(
     @Param('orderId', ParseUUIDPipe) orderId: string,
-    @Req() req
+    @Req() req,
   ) {
-    return await this.paymentService.getPaymentByOrder(orderId, req.user.userId);
+    return await this.paymentService.getPaymentByOrder(
+      orderId,
+      req.user.userId,
+    );
   }
 
   @UseGuards(AuthenticationGuard)
   @Get('order/:orderId/status')
   async getOrderPaymentStatus(
     @Param('orderId', ParseUUIDPipe) orderId: string,
-    @Req() req
+    @Req() req,
   ) {
-    return await this.paymentService.getOrderPaymentStatus(orderId, req.user.userId);
+    return await this.paymentService.getOrderPaymentStatus(
+      orderId,
+      req.user.userId,
+    );
   }
 
   @UseGuards(AuthenticationGuard)
   @Get('reference/:reference')
   async findByReference(@Param('reference') reference: string, @Req() req) {
     const payment = await this.paymentService.findByReference(reference);
-    
+
     // Check if user can view this payment
     if (payment.userId !== req.user.userId) {
-      const user = await this.userRepository.findOne({ where: { id: req.user.userId } });
+      const user = await this.userRepository.findOne({
+        where: { id: req.user.userId },
+      });
       if (!user || ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
         throw new ForbiddenException('You can only view your own payments');
       }
     }
-    
+
     return payment;
   }
 
@@ -101,15 +112,17 @@ export class PaymentController {
   @Get(':id')
   async findOne(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     const payment = await this.paymentService.findOne(id);
-    
+
     // Check if user can view this payment
     if (payment.userId !== req.user.userId) {
-      const user = await this.userRepository.findOne({ where: { id: req.user.userId } });
+      const user = await this.userRepository.findOne({
+        where: { id: req.user.userId },
+      });
       if (!user || ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
         throw new ForbiddenException('You can only view your own payments');
       }
     }
-    
+
     return payment;
   }
 
@@ -126,9 +139,13 @@ export class PaymentController {
   async refundPayment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() refundDto: RefundPaymentDto,
-    @Req() req
+    @Req() req,
   ) {
-    return await this.paymentService.refundPayment(id, refundDto, req.user.userId);
+    return await this.paymentService.refundPayment(
+      id,
+      refundDto,
+      req.user.userId,
+    );
   }
 
   @UseGuards(AuthenticationGuard)
@@ -136,9 +153,13 @@ export class PaymentController {
   async cancelPendingPayment(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
-    @Req() req
+    @Req() req,
   ) {
-    return await this.paymentService.cancelPendingPayment(id, req.user.userId, reason);
+    return await this.paymentService.cancelPendingPayment(
+      id,
+      req.user.userId,
+      reason,
+    );
   }
 
   // Webhook endpoints for payment providers
@@ -178,7 +199,7 @@ export class PaymentController {
   @Post('mobile-money')
   async initiateMobileMoneyPayment(
     @Body() mobileMoneyDto: MobileMoneyPaymentDto,
-    @Req() req
+    @Req() req,
   ) {
     const createPaymentDto: CreatePaymentDto = {
       orderId: mobileMoneyDto.orderId,
@@ -189,7 +210,10 @@ export class PaymentController {
       description: mobileMoneyDto.description,
     };
 
-    return await this.paymentService.createPayment(createPaymentDto, req.user.userId);
+    return await this.paymentService.createPayment(
+      createPaymentDto,
+      req.user.userId,
+    );
   }
 
   // Payment status check endpoint
@@ -197,12 +221,16 @@ export class PaymentController {
   @Get(':id/status')
   async checkPaymentStatus(@Param('id', ParseUUIDPipe) id: string, @Req() req) {
     const payment = await this.paymentService.findOne(id);
-    
+
     // Check permissions
     if (payment.userId !== req.user.userId) {
-      const user = await this.userRepository.findOne({ where: { id: req.user.userId } });
+      const user = await this.userRepository.findOne({
+        where: { id: req.user.userId },
+      });
       if (!user || ![UserRole.ADMIN, UserRole.STAFF].includes(user.role)) {
-        throw new ForbiddenException('You can only check your own payment status');
+        throw new ForbiddenException(
+          'You can only check your own payment status',
+        );
       }
     }
 

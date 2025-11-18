@@ -9,14 +9,12 @@ import { MailService } from '../services/mail.service';
 import { PaymentListener } from '../listeners/payment.listener';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Payment, PaymentWebhook, Order, User])
-  ],
+  imports: [TypeOrmModule.forFeature([Payment, PaymentWebhook, Order, User])],
   controllers: [PaymentController],
   providers: [
-    PaymentService, 
-    MailService, 
-    PaymentListener  // Add the payment listener
+    PaymentService,
+    MailService,
+    PaymentListener, // Add the payment listener
   ],
   exports: [PaymentService, TypeOrmModule],
 })

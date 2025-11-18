@@ -61,7 +61,6 @@ export class User {
   @Column({ type: 'varchar', length: 100, nullable: true })
   district?: string; // Required for customers and delivery staff
 
-
   @CreateDateColumn()
   createdAt: Date;
 
@@ -73,6 +72,5 @@ export class User {
 
   @OneToMany(() => ResetToken, (resetToken) => resetToken.user)
   resetTokens: ResetToken[];
-    payments: any;
-
+  payments: any;
 }

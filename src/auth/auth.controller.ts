@@ -1,4 +1,14 @@
-import { Body, Controller, Post, Put, Req, UseGuards, Get, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Put,
+  Req,
+  UseGuards,
+  Get,
+  Param,
+  Query,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
@@ -22,13 +32,10 @@ export class AuthController {
     return this.authService.signup(signupData);
   }
 
-@Post('register-delivery-staff')
-async registerDelivery(
-  @Body() dto: RegisterDeliveryStaffDto,
-) {
-  return this.authService.registerDeliveryStaff(dto);
-}
-
+  @Post('register-delivery-staff')
+  async registerDelivery(@Body() dto: RegisterDeliveryStaffDto) {
+    return this.authService.registerDeliveryStaff(dto);
+  }
 
   @Post('login')
   async login(@Body() credentials: LoginDto) {
@@ -80,7 +87,6 @@ async registerDelivery(
     return this.authService.getPendingUsers(req.user.userId);
   }
 
-  
   @UseGuards(AuthenticationGuard, RoleGuard)
   @Roles(UserRole.ADMIN)
   @Get('all-users')
@@ -91,7 +97,10 @@ async registerDelivery(
   @UseGuards(AuthenticationGuard, RoleGuard)
   @Roles(UserRole.ADMIN)
   @Put('update-status')
-  async updateUserStatus(@Body() updateStatusDto: UpdateUserStatusDto, @Req() req) {
+  async updateUserStatus(
+    @Body() updateStatusDto: UpdateUserStatusDto,
+    @Req() req,
+  ) {
     return this.authService.updateUserStatus(
       req.user.userId,
       updateStatusDto.email,

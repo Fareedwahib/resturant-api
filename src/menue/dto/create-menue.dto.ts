@@ -1,14 +1,14 @@
-import { 
-  IsString, 
-  IsNumber, 
-  IsOptional, 
-  IsArray, 
-  IsBoolean, 
-  Min, 
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsArray,
+  IsBoolean,
+  Min,
   IsNotEmpty,
   MaxLength,
   MinLength,
-  Max
+  Max,
 } from 'class-validator';
 
 export class CreateMenueDto {
@@ -23,7 +23,10 @@ export class CreateMenueDto {
   @MaxLength(500, { message: 'Description must not exceed 500 characters' })
   description?: string;
 
-  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Price must have at most 2 decimal places' })
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'Price must have at most 2 decimal places' },
+  )
   @Min(0.01, { message: 'Price must be greater than 0' })
   @Max(999999.99, { message: 'Price must not exceed 999,999.99' })
   price: number;
@@ -34,7 +37,7 @@ export class CreateMenueDto {
 
   @IsNumber({}, { message: 'Category ID must be a valid number' })
   @Min(1, { message: 'Category ID must be a positive number' })
-  categoryId: number; 
+  categoryId: number;
 
   @IsOptional()
   @IsArray()

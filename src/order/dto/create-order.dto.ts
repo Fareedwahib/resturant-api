@@ -27,7 +27,9 @@ export class CreateOrderItemDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(200, { message: 'Special requests must not exceed 200 characters' })
+  @MaxLength(200, {
+    message: 'Special requests must not exceed 200 characters',
+  })
   specialRequests?: string;
 }
 
@@ -42,20 +44,24 @@ export class CreateOrderDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(500, { message: 'Delivery address must not exceed 500 characters' })
+  @MaxLength(500, {
+    message: 'Delivery address must not exceed 500 characters',
+  })
   deliveryAddress: string;
 
-//   @IsString()
-//   @IsNotEmpty()
-//   @MinLength(2, { message: 'Customer name must be at least 2 characters' })
-//   @MaxLength(100, { message: 'Customer name must not exceed 100 characters' })
-//   customerName: string;
+  //   @IsString()
+  //   @IsNotEmpty()
+  //   @MinLength(2, { message: 'Customer name must be at least 2 characters' })
+  //   @MaxLength(100, { message: 'Customer name must not exceed 100 characters' })
+  //   customerName: string;
 
-//   @IsPhoneNumber('UG')
-//   customerPhone: string;
+  //   @IsPhoneNumber('UG')
+  //   customerPhone: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(300, { message: 'Special instructions must not exceed 300 characters' })
+  @MaxLength(300, {
+    message: 'Special instructions must not exceed 300 characters',
+  })
   specialInstructions?: string;
 }

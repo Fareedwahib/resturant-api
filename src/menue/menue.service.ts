@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Menue } from './entities/menue.entity';
@@ -19,7 +24,7 @@ export class MenueService {
     const { categoryId, name, description, price, stock } = createMenueDto;
 
     const category = await this.categoryRepository.findOne({
-      where: { id: categoryId }
+      where: { id: categoryId },
     });
 
     if (!category) {
@@ -27,7 +32,7 @@ export class MenueService {
     }
 
     const existingProduct = await this.productRepository.findOne({
-      where: { name }
+      where: { name },
     });
 
     if (existingProduct) {
@@ -43,15 +48,15 @@ export class MenueService {
       userId,
     });
 
-      return await this.productRepository.save(product);
+    return await this.productRepository.save(product);
   }
- async findAll(): Promise<Menue[]> {
+  async findAll(): Promise<Menue[]> {
     const menues = await this.productRepository.find({
       relations: ['category', 'user'],
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
 
-    return menues.map(menue => {
+    return menues.map((menue) => {
       if (menue.user) {
         const { password, ...safeUser } = menue.user;
         menue.user = safeUser as any;
@@ -62,7 +67,7 @@ export class MenueService {
 
   async findByCategory(categoryId: number): Promise<Menue[]> {
     const category = await this.categoryRepository.findOne({
-      where: { id: categoryId }
+      where: { id: categoryId },
     });
 
     if (!category) {
@@ -72,14 +77,14 @@ export class MenueService {
     return await this.productRepository.find({
       where: { categoryId },
       relations: ['category'],
-      order: { name: 'ASC' }
+      order: { name: 'ASC' },
     });
   }
 
-    async findOne(id: number): Promise<Menue> {
+  async findOne(id: number): Promise<Menue> {
     const menue = await this.productRepository.findOne({
       where: { id },
-      relations: ['category', 'user']
+      relations: ['category', 'user'],
     });
 
     if (!menue) {
@@ -94,7 +99,11 @@ export class MenueService {
     return menue;
   }
 
-  async update(id: number, updateMenueDto: UpdateMenueDto, userId: string): Promise<Menue> {
+  async update(
+    id: number,
+    updateMenueDto: UpdateMenueDto,
+    userId: string,
+  ): Promise<Menue> {
     const menue = await this.findOne(id);
 
     if (menue.userId !== userId) {
@@ -103,17 +112,19 @@ export class MenueService {
 
     if (updateMenueDto.categoryId) {
       const category = await this.categoryRepository.findOne({
-        where: { id: updateMenueDto.categoryId }
+        where: { id: updateMenueDto.categoryId },
       });
 
       if (!category) {
-        throw new BadRequestException(`Category with ID ${updateMenueDto.categoryId} not found`);
+        throw new BadRequestException(
+          `Category with ID ${updateMenueDto.categoryId} not found`,
+        );
       }
     }
 
     if (updateMenueDto.name && updateMenueDto.name !== menue.name) {
       const existingMenue = await this.productRepository.findOne({
-        where: { name: updateMenueDto.name }
+        where: { name: updateMenueDto.name },
       });
 
       if (existingMenue) {
@@ -140,11 +151,15 @@ export class MenueService {
     return await this.productRepository.find({
       where: { userId },
       relations: ['category'],
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
   }
 
-  async updateStock(id: number, newStock: number, userId: string): Promise<Menue> {
+  async updateStock(
+    id: number,
+    newStock: number,
+    userId: string,
+  ): Promise<Menue> {
     const menue = await this.findOne(id);
 
     if (menue.userId !== userId) {
@@ -173,7 +188,7 @@ export class MenueService {
         'category.name',
         'user.id',
         'user.name',
-        'user.email'
+        'user.email',
       ])
       .orderBy('menue.name', 'ASC')
       .getMany();

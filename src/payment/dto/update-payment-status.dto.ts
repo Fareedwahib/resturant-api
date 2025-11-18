@@ -10,7 +10,7 @@ export class UpdatePaymentStatusDto {
   gatewayTransactionId?: string;
 
   @IsOptional()
-  @IsString() 
+  @IsString()
   gatewayReference?: string;
 
   @IsOptional()
