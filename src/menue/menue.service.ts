@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Menue } from './entities/menue.entity';
 import { Category } from '../category/entities/category.entity';
+import { User, UserRole } from '../auth/entities/user.entity';
 import { CreateMenueDto } from './dto/create-menue.dto';
 import { UpdateMenueDto } from './dto/update-menue.dto';
 
@@ -13,10 +14,27 @@ export class MenueService {
     private productRepository: Repository<Menue>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
+  private async ensureOwnerOrAdmin(requestUserId: string, ownerUserId: string): Promise<void> {
+    if (requestUserId === ownerUserId) {
+      return;
+    }
+
+    const user = await this.userRepository.findOne({
+      where: { id: requestUserId },
+      select: ['id', 'role'],
+    });
+
+    if (!user || user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('You can only manage your own menu items');
+    }
+  }
+
   async create(createMenueDto: CreateMenueDto, userId: string): Promise<Menue> {
-    const { categoryId, name, description, price, stock } = createMenueDto;
+    const { categoryId, name, description, imageUrl, price, stock } = createMenueDto;
 
     const category = await this.categoryRepository.findOne({
       where: { id: categoryId }
@@ -37,6 +55,7 @@ export class MenueService {
     const product = this.productRepository.create({
       name,
       description,
+      imageUrl,
       price,
       stock,
       categoryId,
@@ -96,10 +115,7 @@ export class MenueService {
 
   async update(id: number, updateMenueDto: UpdateMenueDto, userId: string): Promise<Menue> {
     const menue = await this.findOne(id);
-
-    if (menue.userId !== userId) {
-      throw new ForbiddenException('You can only update your own menues');
-    }
+    await this.ensureOwnerOrAdmin(userId, menue.userId);
 
     if (updateMenueDto.categoryId) {
       const category = await this.categoryRepository.findOne({
@@ -127,10 +143,7 @@ export class MenueService {
 
   async remove(id: number, userId: string): Promise<{ message: string }> {
     const menue = await this.findOne(id);
-
-    if (menue.userId !== userId) {
-      throw new ForbiddenException('You can only delete your own menues');
-    }
+    await this.ensureOwnerOrAdmin(userId, menue.userId);
 
     await this.productRepository.remove(menue);
     return { message: 'Menue deleted successfully' };
@@ -146,10 +159,7 @@ export class MenueService {
 
   async updateStock(id: number, newStock: number, userId: string): Promise<Menue> {
     const menue = await this.findOne(id);
-
-    if (menue.userId !== userId) {
-      throw new ForbiddenException('You can only update your own menues');
-    }
+    await this.ensureOwnerOrAdmin(userId, menue.userId);
 
     if (newStock < 0) {
       throw new BadRequestException('Stock cannot be negative');

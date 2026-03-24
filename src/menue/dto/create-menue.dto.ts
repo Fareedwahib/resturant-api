@@ -8,7 +8,8 @@ import {
   IsNotEmpty,
   MaxLength,
   MinLength,
-  Max
+  Max,
+  IsUrl
 } from 'class-validator';
 
 export class CreateMenueDto {
@@ -22,6 +23,11 @@ export class CreateMenueDto {
   @IsOptional()
   @MaxLength(500, { message: 'Description must not exceed 500 characters' })
   description?: string;
+
+  @IsOptional()
+  @IsUrl({}, { message: 'Image URL must be a valid URL' })
+  @MaxLength(1000, { message: 'Image URL must not exceed 1000 characters' })
+  imageUrl?: string;
 
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Price must have at most 2 decimal places' })
   @Min(0.01, { message: 'Price must be greater than 0' })

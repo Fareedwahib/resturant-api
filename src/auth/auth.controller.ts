@@ -43,7 +43,7 @@ async registerDelivery(
   @UseGuards(AuthenticationGuard)
   @Get('profile')
   async getProfile(@Req() req) {
-    return this.authService.getUserProfile(req.userId);
+    return this.authService.getUserProfile(req.user.userId);
   }
 
   @UseGuards(AuthenticationGuard)
@@ -53,7 +53,7 @@ async registerDelivery(
     @Req() req,
   ) {
     return this.authService.changePassword(
-      req.userId,
+      req.user.userId,
       changePasswordDto.oldPassword,
       changePasswordDto.newPassword,
     );
@@ -103,6 +103,6 @@ async registerDelivery(
   @Roles(UserRole.ADMIN)
   @Get('users-by-role/:role')
   async getUsersByRole(@Param('role') role: UserRole, @Req() req) {
-    return this.authService.getUsersByRole(req.userId, role);
+    return this.authService.getUsersByRole(req.user.userId, role);
   }
 }

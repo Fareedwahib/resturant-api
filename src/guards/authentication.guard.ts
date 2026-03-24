@@ -29,6 +29,8 @@ export class AuthenticationGuard implements CanActivate {
         userId: payload.userId,
         role: payload.role, 
       };
+      request.userId = payload.userId;
+      request.role = payload.role;
     } catch (e) {
       Logger.error(e.message);
       throw new UnauthorizedException('Invalid Token');

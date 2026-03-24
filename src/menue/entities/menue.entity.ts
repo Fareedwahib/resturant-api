@@ -21,6 +21,9 @@ export class Menue {
     @Column({ length: 500, nullable: true })
     description?: string;
 
+    @Column({ length: 1000, nullable: true })
+    imageUrl?: string;
+
     @Column('decimal', { precision: 10, scale: 2 })
     price: number;
 
