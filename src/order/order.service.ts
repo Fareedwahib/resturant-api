@@ -6,12 +6,14 @@ import {
   InternalServerErrorException,
   Logger, 
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, FindManyOptions, Not, In } from 'typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter'; // Add EventEmitter2 import
 import { Order, OrderItem, OrderStatus, PaymentStatus } from './entities/order.entity';
 import { User, UserRole, UserStatus } from '../auth/entities/user.entity';
 import { Menue } from '../menue/entities/menue.entity';
+import { DeliveryZone } from './entities/delivery-zone.entity';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
@@ -35,8 +37,11 @@ export class OrderService {
     private userRepository: Repository<User>,
     @InjectRepository(Menue)
     private menuRepository: Repository<Menue>,
+    @InjectRepository(DeliveryZone)
+    private deliveryZoneRepository: Repository<DeliveryZone>,
     private mailService: MailService,
     private eventEmitter: EventEmitter2, 
+    private configService: ConfigService,
   ) { }
 
   async create(createOrderDto: CreateOrderDto, customerId: string): Promise<Order> {
@@ -108,7 +113,17 @@ export class OrderService {
       }
 
       // Calculate fees
-      const deliveryFee = this.calculateDeliveryFee(subtotal);
+      const quote = await this.getDeliveryQuote(
+        createOrderDto.deliveryLatitude,
+        createOrderDto.deliveryLongitude,
+        subtotal,
+      );
+
+      if (!quote.serviceable) {
+        throw new BadRequestException('Delivery location is outside our service area');
+      }
+
+      const deliveryFee = quote.deliveryFee;
       const totalAmount = subtotal + deliveryFee;
 
       // Generating unique order number
@@ -124,7 +139,11 @@ export class OrderService {
         paymentMethod: createOrderDto.paymentMethod,
         deliveryAddress: createOrderDto.deliveryAddress,
         specialInstructions: createOrderDto.specialInstructions,
-        estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(),
+        deliveryLatitude: createOrderDto.deliveryLatitude,
+        deliveryLongitude: createOrderDto.deliveryLongitude,
+        deliveryZoneId: quote.zoneId,
+        deliveryZoneName: quote.zoneName,
+        estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(quote.estimatedDeliveryMinutes),
       });
 
       const savedOrder = await this.orderRepository.save(order);
@@ -527,17 +546,196 @@ export class OrderService {
   }
 
   // Keep all existing private methods exactly the same...
-  private calculateDeliveryFee(subtotal: number): number {
-    // Simple delivery fee calculation 
-    if (subtotal >= 50000) return 0; // Free delivery for orders above 50k UGX
-    return 5000; // 5k UGX delivery fee
+  async getDeliveryQuote(latitude?: number, longitude?: number, subtotal = 0) {
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+      return {
+        serviceable: false,
+        zoneId: undefined as string | undefined,
+        zoneName: undefined as string | undefined,
+        distanceKm: undefined as number | undefined,
+        deliveryFee: 0,
+        estimatedDeliveryMinutes: 0,
+        message: 'Delivery coordinates are required for Bombo deliveries.',
+      };
+    }
+
+    if (!this.isWithinBomboBounds(latitude, longitude)) {
+      return {
+        serviceable: false,
+        zoneId: undefined as string | undefined,
+        zoneName: undefined as string | undefined,
+        distanceKm: undefined as number | undefined,
+        deliveryFee: 0,
+        estimatedDeliveryMinutes: 0,
+        message: 'This location is outside Bombo delivery coverage.',
+      };
+    }
+
+    const zone = await this.findServiceableZone(latitude, longitude);
+    if (!zone) {
+      return {
+        serviceable: false,
+        zoneId: undefined as string | undefined,
+        zoneName: undefined as string | undefined,
+        distanceKm: undefined as number | undefined,
+        deliveryFee: 0,
+        estimatedDeliveryMinutes: 0,
+        message: 'This location is outside Bombo delivery coverage.',
+      };
+    }
+
+    const distanceKm = this.calculateDistanceKm(
+      Number(zone.storeLatitude),
+      Number(zone.storeLongitude),
+      latitude,
+      longitude,
+    );
+
+    const deliveryFee = Number(zone.baseFee) + distanceKm * Number(zone.feePerKm);
+    const roundedFee = Math.max(0, Math.round(deliveryFee));
+
+    return {
+      serviceable: true,
+      zoneId: zone.id,
+      zoneName: zone.name,
+      distanceKm: Number(distanceKm.toFixed(2)),
+      deliveryFee: roundedFee,
+      estimatedDeliveryMinutes: zone.averageDeliveryMinutes,
+      message: undefined as string | undefined,
+    };
   }
 
-  private calculateEstimatedDeliveryTime(): Date {
+  private isWithinBomboBounds(latitude: number, longitude: number): boolean {
+    const minLatitude = Number(this.configService.get<string>('delivery.bomboMinLatitude') ?? '0.55');
+    const maxLatitude = Number(this.configService.get<string>('delivery.bomboMaxLatitude') ?? '0.61');
+    const minLongitude = Number(this.configService.get<string>('delivery.bomboMinLongitude') ?? '32.49');
+    const maxLongitude = Number(this.configService.get<string>('delivery.bomboMaxLongitude') ?? '32.57');
+
+    return (
+      latitude >= minLatitude &&
+      latitude <= maxLatitude &&
+      longitude >= minLongitude &&
+      longitude <= maxLongitude
+    );
+  }
+
+  private calculateDeliveryFee(subtotal: number): number {
+    // Simple fallback delivery fee calculation
+    if (subtotal >= 50000) return 0;
+    return 5000;
+  }
+
+  private calculateEstimatedDeliveryTime(estimatedMinutes = 45): Date {
     const now = new Date();
-    // 45 minutes for preparation and delivery
-    now.setMinutes(now.getMinutes() + 45);
+    now.setMinutes(now.getMinutes() + estimatedMinutes);
     return now;
+  }
+
+  private async findServiceableZone(latitude: number, longitude: number): Promise<DeliveryZone | null> {
+    const activeZones = await this.deliveryZoneRepository.find({
+      where: { isActive: true },
+      order: { createdAt: 'ASC' },
+    });
+
+    for (const zone of activeZones) {
+      const hasPolygon = Array.isArray(zone.polygon) && zone.polygon.length >= 3;
+      if (hasPolygon && this.isPointInPolygon(latitude, longitude, zone.polygon!)) {
+        return zone;
+      }
+
+      const distanceKm = this.calculateDistanceKm(
+        Number(zone.storeLatitude),
+        Number(zone.storeLongitude),
+        latitude,
+        longitude,
+      );
+
+      if (distanceKm <= Number(zone.maxDistanceKm)) {
+        return zone;
+      }
+    }
+
+    const fallbackStoreLat = Number(this.configService.get<string>('delivery.storeLatitude') ?? '0');
+    const fallbackStoreLng = Number(this.configService.get<string>('delivery.storeLongitude') ?? '0');
+    const fallbackMaxDistanceKm = Number(this.configService.get<string>('delivery.maxDistanceKm') ?? '8');
+
+    if (!fallbackStoreLat && !fallbackStoreLng) {
+      return null;
+    }
+
+    const fallbackDistanceKm = this.calculateDistanceKm(
+      fallbackStoreLat,
+      fallbackStoreLng,
+      latitude,
+      longitude,
+    );
+
+    if (fallbackDistanceKm > fallbackMaxDistanceKm) {
+      return null;
+    }
+
+    const fallbackZone = new DeliveryZone();
+    fallbackZone.id = 'fallback-zone';
+    fallbackZone.name = 'Standard Delivery Zone';
+    fallbackZone.isActive = true;
+    fallbackZone.baseFee = Number(this.configService.get<string>('delivery.baseFee') ?? '3000');
+    fallbackZone.feePerKm = Number(this.configService.get<string>('delivery.feePerKm') ?? '500');
+    fallbackZone.maxDistanceKm = fallbackMaxDistanceKm;
+    fallbackZone.averageDeliveryMinutes = Number(this.configService.get<string>('delivery.averageMinutes') ?? '45');
+    fallbackZone.minimumOrderAmount = 0;
+    fallbackZone.storeLatitude = fallbackStoreLat;
+    fallbackZone.storeLongitude = fallbackStoreLng;
+    fallbackZone.createdAt = new Date();
+    fallbackZone.updatedAt = new Date();
+    return fallbackZone;
+  }
+
+  private calculateDistanceKm(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ): number {
+    const toRadians = (value: number) => (value * Math.PI) / 180;
+    const earthRadiusKm = 6371;
+
+    const dLat = toRadians(lat2 - lat1);
+    const dLng = toRadians(lng2 - lng1);
+
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRadians(lat1)) *
+        Math.cos(toRadians(lat2)) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  private isPointInPolygon(
+    latitude: number,
+    longitude: number,
+    polygon: Array<{ lat: number; lng: number }>,
+  ): boolean {
+    let inside = false;
+
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].lng;
+      const yi = polygon[i].lat;
+      const xj = polygon[j].lng;
+      const yj = polygon[j].lat;
+
+      const intersects =
+        yi > latitude !== yj > latitude &&
+        longitude < ((xj - xi) * (latitude - yi)) / (yj - yi + Number.EPSILON) + xi;
+
+      if (intersects) {
+        inside = !inside;
+      }
+    }
+
+    return inside;
   }
 
   private async generateOrderNumber(): Promise<string> {

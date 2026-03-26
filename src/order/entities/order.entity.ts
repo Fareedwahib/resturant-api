@@ -85,6 +85,18 @@ export class Order {
   @Column({ type: 'varchar', length: 500 })
   deliveryAddress: string;
 
+  @Column('decimal', { precision: 10, scale: 7, nullable: true })
+  deliveryLatitude?: number;
+
+  @Column('decimal', { precision: 10, scale: 7, nullable: true })
+  deliveryLongitude?: number;
+
+  @Column({ type: 'uuid', nullable: true })
+  deliveryZoneId?: string;
+
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  deliveryZoneName?: string;
+
   @Column({ type: 'timestamp', nullable: true })
   estimatedDeliveryTime?: Date;
 

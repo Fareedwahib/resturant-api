@@ -11,6 +11,8 @@ import {
   IsPhoneNumber,
   MaxLength,
   MinLength,
+  IsLatitude,
+  IsLongitude,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentMethod } from '../entities/order.entity';
@@ -58,4 +60,10 @@ export class CreateOrderDto {
   @IsString()
   @MaxLength(300, { message: 'Special instructions must not exceed 300 characters' })
   specialInstructions?: string;
+
+  @IsLatitude({ message: 'Delivery latitude must be a valid latitude value' })
+  deliveryLatitude?: number;
+
+  @IsLongitude({ message: 'Delivery longitude must be a valid longitude value' })
+  deliveryLongitude?: number;
 }

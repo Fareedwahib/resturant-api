@@ -20,6 +20,7 @@ import { OrderService } from './order.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
+import { DeliveryQuoteDto } from './dto/delivery-quote.dto';
 import { AuthenticationGuard } from '../guards/authentication.guard';
 import { RoleGuard } from '../guards/role.guard';
 import { Roles } from '../decorators/roles.decorator';
@@ -66,6 +67,17 @@ export class OrderController {
   @Get('statistics')
   async getStatistics(@Req() req) {
     return await this.orderService.getOrderStatistics(req.user.userId);
+  }
+
+  @UseGuards(AuthenticationGuard, RoleGuard)
+  @Roles(UserRole.ADMIN, UserRole.STAFF, UserRole.CUSTOMER)
+  @Get('delivery-quote')
+  async getDeliveryQuote(@Query() quoteDto: DeliveryQuoteDto) {
+    return await this.orderService.getDeliveryQuote(
+      quoteDto.latitude,
+      quoteDto.longitude,
+      quoteDto.subtotal,
+    );
   }
 
   @UseGuards(AuthenticationGuard, RoleGuard)

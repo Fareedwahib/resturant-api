@@ -34,4 +34,16 @@ export default () => ({
       apiKey: process.env.AFRICELL_API_KEY,
     },
   },
+  delivery: {
+    storeLatitude: process.env.DELIVERY_STORE_LATITUDE,
+    storeLongitude: process.env.DELIVERY_STORE_LONGITUDE,
+    maxDistanceKm: process.env.DELIVERY_MAX_DISTANCE_KM,
+    baseFee: process.env.DELIVERY_BASE_FEE,
+    feePerKm: process.env.DELIVERY_FEE_PER_KM,
+    averageMinutes: process.env.DELIVERY_AVERAGE_MINUTES,
+    bomboMinLatitude: process.env.DELIVERY_BOMBO_MIN_LATITUDE,
+    bomboMaxLatitude: process.env.DELIVERY_BOMBO_MAX_LATITUDE,
+    bomboMinLongitude: process.env.DELIVERY_BOMBO_MIN_LONGITUDE,
+    bomboMaxLongitude: process.env.DELIVERY_BOMBO_MAX_LONGITUDE,
+  },
 });

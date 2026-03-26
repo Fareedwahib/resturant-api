@@ -21,6 +21,7 @@ import { MenueModule } from './menue/menue.module';
 import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
 import { Order, OrderItem } from './order/entities/order.entity';
+import { DeliveryZone } from './order/entities/delivery-zone.entity';
 import { Payment, PaymentWebhook } from './payment/entities/payment.entity';
 import config from './config/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
@@ -73,6 +74,7 @@ import { MailService } from './services/mail.service';
           DeliveryStaff,
           Order,
           OrderItem,
+          DeliveryZone,
           Payment,
           PaymentWebhook,
         ],
@@ -91,6 +93,7 @@ import { MailService } from './services/mail.service';
       DeliveryStaff,
       Order,
       OrderItem,
+      DeliveryZone,
       Payment,
       PaymentWebhook,
     ]), 

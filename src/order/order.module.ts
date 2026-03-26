@@ -6,10 +6,11 @@ import { Order, OrderItem } from './entities/order.entity';
 import { User } from '../auth/entities/user.entity';
 import { Menue } from '../menue/entities/menue.entity';
 import { MailService } from '../services/mail.service';
+import { DeliveryZone } from './entities/delivery-zone.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Order, OrderItem, User, Menue])
+    TypeOrmModule.forFeature([Order, OrderItem, User, Menue, DeliveryZone])
   ],
   controllers: [OrderController],
   providers: [OrderService, MailService],
