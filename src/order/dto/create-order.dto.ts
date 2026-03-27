@@ -61,9 +61,11 @@ export class CreateOrderDto {
   @MaxLength(300, { message: 'Special instructions must not exceed 300 characters' })
   specialInstructions?: string;
 
+  @IsOptional()
   @IsLatitude({ message: 'Delivery latitude must be a valid latitude value' })
   deliveryLatitude?: number;
 
+  @IsOptional()
   @IsLongitude({ message: 'Delivery longitude must be a valid longitude value' })
   deliveryLongitude?: number;
 }

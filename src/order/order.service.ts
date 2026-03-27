@@ -22,7 +22,6 @@ import { OrderCreatedEvent } from '../events/order-created.event';
 import { OrderStatusUpdatedEvent } from '../events/order-status-updated.event';
 import { OrderCancelledEvent } from '../events/order-cancelled.event';
 import { OrderPaymentUpdatedEvent } from '../events/order-payment-updated.event';
-import { InventoryUpdateRequiredEvent } from '../events/inventory-update-required.event';
 
 @Injectable()
 export class OrderService {
@@ -66,13 +65,6 @@ export class OrderService {
         specialRequests?: string;
       }> = [];
 
-      // Tracking inventory updates for event
-      const inventoryUpdates: Array<{
-        menuItemId: number;
-        quantity: number;
-        operation: 'decrement' | 'increment';
-      }> = [];
-
       for (const item of createOrderDto.items) {
         const menuItem = await this.menuRepository.findOne({
           where: { id: item.menuItemId },
@@ -80,16 +72,6 @@ export class OrderService {
 
         if (!menuItem) {
           throw new BadRequestException(`Menu item with ID ${item.menuItemId} not found`);
-        }
-
-        if (!menuItem.isActive) {
-          throw new BadRequestException(`Menu item "${menuItem.name}" is not available`);
-        }
-
-        if (menuItem.stock < item.quantity) {
-          throw new BadRequestException(
-            `Insufficient stock for "${menuItem.name}". Available: ${menuItem.stock}, Requested: ${item.quantity}`
-          );
         }
 
         const itemTotal = menuItem.price * item.quantity;
@@ -104,26 +86,35 @@ export class OrderService {
           specialRequests: item.specialRequests,
         });
 
-        // Preparing inventory update for event
-        inventoryUpdates.push({
-          menuItemId: menuItem.id,
-          quantity: item.quantity,
-          operation: 'decrement',
-        });
       }
 
-      // Calculate fees
-      const quote = await this.getDeliveryQuote(
-        createOrderDto.deliveryLatitude,
-        createOrderDto.deliveryLongitude,
-        subtotal,
-      );
+      const hasCoordinates =
+        typeof createOrderDto.deliveryLatitude === 'number' &&
+        typeof createOrderDto.deliveryLongitude === 'number';
 
-      if (!quote.serviceable) {
-        throw new BadRequestException('Delivery location is outside our service area');
+      let quote:
+        | {
+            serviceable: boolean;
+            zoneId?: string;
+            zoneName?: string;
+            estimatedDeliveryMinutes: number;
+            deliveryFee: number;
+          }
+        | undefined;
+
+      if (hasCoordinates) {
+        const deliveryQuote = await this.getDeliveryQuote(
+          createOrderDto.deliveryLatitude,
+          createOrderDto.deliveryLongitude,
+          subtotal,
+        );
+
+        if (deliveryQuote.serviceable) {
+          quote = deliveryQuote;
+        }
       }
 
-      const deliveryFee = quote.deliveryFee;
+      const deliveryFee = quote?.deliveryFee ?? this.calculateDeliveryFee(subtotal);
       const totalAmount = subtotal + deliveryFee;
 
       // Generating unique order number
@@ -141,9 +132,9 @@ export class OrderService {
         specialInstructions: createOrderDto.specialInstructions,
         deliveryLatitude: createOrderDto.deliveryLatitude,
         deliveryLongitude: createOrderDto.deliveryLongitude,
-        deliveryZoneId: quote.zoneId,
-        deliveryZoneName: quote.zoneName,
-        estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(quote.estimatedDeliveryMinutes),
+        deliveryZoneId: quote?.zoneId,
+        deliveryZoneName: quote?.zoneName,
+        estimatedDeliveryTime: this.calculateEstimatedDeliveryTime(quote?.estimatedDeliveryMinutes ?? 45),
       });
 
       const savedOrder = await this.orderRepository.save(order);
@@ -167,13 +158,6 @@ export class OrderService {
 
       // Sending order confirmation email
       await this.sendOrderConfirmationEmail(savedOrder);
-
-      // Emitting inventory update event
-      this.eventEmitter.emit('inventory.update-required', new InventoryUpdateRequiredEvent(
-        inventoryUpdates,
-        savedOrder.id,
-        savedOrder.orderNumber
-      ));
 
       // Emitting order created event
       this.eventEmitter.emit('order.created', new OrderCreatedEvent(
@@ -399,17 +383,6 @@ export class OrderService {
       throw new BadRequestException('Delivered orders cannot be cancelled or deleted.');
     }
 
-    // Prepare inventory restoration for event
-    const inventoryUpdates: Array<{
-      menuItemId: number;
-      quantity: number;
-      operation: 'increment' | 'decrement';
-    }> = order.items.map(item => ({
-      menuItemId: item.menuItemId,
-      quantity: item.quantity,
-      operation: 'increment' as const,
-    }));
-
     // Restore stock for each ordered menu item
     for (const item of order.items) {
       await this.menuRepository.increment(
@@ -418,13 +391,6 @@ export class OrderService {
         item.quantity,
       );
     }
-
-    // Emitting inventory update event for stock restoration
-    this.eventEmitter.emit('inventory.update-required', new InventoryUpdateRequiredEvent(
-      inventoryUpdates,
-      order.id,
-      order.orderNumber
-    ));
 
     // Emitting order cancelled event
     if (customer) {
@@ -620,9 +586,8 @@ export class OrderService {
   }
 
   private calculateDeliveryFee(subtotal: number): number {
-    // Simple fallback delivery fee calculation
-    if (subtotal >= 50000) return 0;
-    return 5000;
+    // Simplified flow: do not add fallback delivery fee unless an explicit quote is used.
+    return 0;
   }
 
   private calculateEstimatedDeliveryTime(estimatedMinutes = 45): Date {
@@ -655,11 +620,11 @@ export class OrderService {
       }
     }
 
-    const fallbackStoreLat = Number(this.configService.get<string>('delivery.storeLatitude') ?? '0');
-    const fallbackStoreLng = Number(this.configService.get<string>('delivery.storeLongitude') ?? '0');
-    const fallbackMaxDistanceKm = Number(this.configService.get<string>('delivery.maxDistanceKm') ?? '8');
+    const fallbackStoreLat = Number(this.configService.get<string>('delivery.storeLatitude') || '0.5849');
+    const fallbackStoreLng = Number(this.configService.get<string>('delivery.storeLongitude') || '32.5313');
+    const fallbackMaxDistanceKm = Number(this.configService.get<string>('delivery.maxDistanceKm') || '8');
 
-    if (!fallbackStoreLat && !fallbackStoreLng) {
+    if (!Number.isFinite(fallbackStoreLat) || !Number.isFinite(fallbackStoreLng)) {
       return null;
     }
 
@@ -678,10 +643,10 @@ export class OrderService {
     fallbackZone.id = 'fallback-zone';
     fallbackZone.name = 'Standard Delivery Zone';
     fallbackZone.isActive = true;
-    fallbackZone.baseFee = Number(this.configService.get<string>('delivery.baseFee') ?? '3000');
-    fallbackZone.feePerKm = Number(this.configService.get<string>('delivery.feePerKm') ?? '500');
+    fallbackZone.baseFee = Number(this.configService.get<string>('delivery.baseFee') || '3000');
+    fallbackZone.feePerKm = Number(this.configService.get<string>('delivery.feePerKm') || '500');
     fallbackZone.maxDistanceKm = fallbackMaxDistanceKm;
-    fallbackZone.averageDeliveryMinutes = Number(this.configService.get<string>('delivery.averageMinutes') ?? '45');
+    fallbackZone.averageDeliveryMinutes = Number(this.configService.get<string>('delivery.averageMinutes') || '45');
     fallbackZone.minimumOrderAmount = 0;
     fallbackZone.storeLatitude = fallbackStoreLat;
     fallbackZone.storeLongitude = fallbackStoreLng;
