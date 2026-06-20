@@ -1,8 +1,12 @@
-// src/app.module.ts (Updated with new listeners)
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { CacheModule } from '@nestjs/cache-manager';
+import { ScheduleModule } from '@nestjs/schedule';
+import { APP_GUARD } from '@nestjs/core';
+import { UploadModule } from './upload/upload.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -34,6 +38,20 @@ import { MailService } from './services/mail.service';
       cache: true,
       load: [config],
     }),
+    // Rate limiting: 100 requests per minute globally
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
+    // In-memory cache with 5 minute TTL
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 300,
+    }),
+    // Cron/scheduled tasks
+    ScheduleModule.forRoot(),
     EventEmitterModule.forRoot({
       // Set this to `true` to use wildcards
       wildcard: false,
@@ -105,22 +123,28 @@ import { MailService } from './services/mail.service';
       }),
       inject: [ConfigService],
     }), 
-    CategoriesModule, 
+    CategoriesModule,
     MenueModule,
     OrderModule,
     PaymentModule,
+    UploadModule,
  ],
 
   controllers: [AppController],
   providers: [
     AppService,
     MailService,
+    // Rate limiting guard applied globally
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     // Event Listeners
     UserListener,
     AuditListener,
-    OrderListener, 
-    InventoryListener,  
-    NotificationListener, 
+    OrderListener,
+    InventoryListener,
+    NotificationListener,
   ],
 })
 

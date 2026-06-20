@@ -25,9 +25,9 @@ export class MobileMoneyService {
   ): Promise<MobileMoneyTransaction> {
     try {
       // MTN MoMo API integration
-      const mtnApiKey = this.configService.get('MTN_API_KEY');
-      const mtnSubscriptionKey = this.configService.get('MTN_SUBSCRIPTION_KEY');
-      
+      const mtnApiKey = this.configService.get('payment.mtn.apiKey');
+      const mtnSubscriptionKey = this.configService.get('payment.mtn.subscriptionKey');
+
       if (!mtnApiKey || !mtnSubscriptionKey) {
         this.logger.warn('MTN MoMo credentials not configured');
         return this.simulateTransaction(MobileMoneyProvider.MTN);
@@ -78,7 +78,7 @@ export class MobileMoneyService {
   ): Promise<MobileMoneyTransaction> {
     try {
       // Airtel Money API integration
-      const airtelApiKey = this.configService.get('AIRTEL_API_KEY');
+      const airtelApiKey = this.configService.get('payment.airtel.apiKey');
       
       if (!airtelApiKey) {
         this.logger.warn('Airtel Money credentials not configured');

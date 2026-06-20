@@ -25,7 +25,7 @@ export class CreateMenueDto {
   description?: string;
 
   @IsOptional()
-  @IsUrl({}, { message: 'Image URL must be a valid URL' })
+  @IsString()
   @MaxLength(1000, { message: 'Image URL must not exceed 1000 characters' })
   imageUrl?: string;
 
